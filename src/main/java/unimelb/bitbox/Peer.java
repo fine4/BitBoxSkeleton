@@ -1,8 +1,10 @@
 package unimelb.bitbox;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.security.NoSuchAlgorithmException;
@@ -13,16 +15,13 @@ import javax.net.ServerSocketFactory;
 
 import unimelb.bitbox.util.Configuration;
 import unimelb.bitbox.util.Document;
-import unimelb.bitbox.util.FileSystemManager;
 import unimelb.bitbox.util.FileSystemManager.FileSystemEvent;
 import unimelb.bitbox.util.HostPort;
 
 public class Peer {
 	private static Logger log = Logger.getLogger(Peer.class.getName());
-	private static int peerNum = 0;
-	private static FileSystemManager fileSystemManager;
 	private static ArrayList<FileSystemEvent> pathevents;
-	private static FileSystemEvent fileSystemEvent;
+
 	
 
 	public static void main(String[] args) throws IOException, NumberFormatException, NoSuchAlgorithmException {
@@ -48,15 +47,22 @@ public class Peer {
 		}).start() ;
 		System.out.println("already create a thread for asClient");*/
 
-		//new Thread(() -> asServer(8111)).start();
-		// ServerMain callserverMain = new ServerMain();
+		new Thread(() -> {
+			try {
+				asServer(8111);
+			} catch (NoSuchAlgorithmException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}).start();
+		//ServerMain callserverMain = new ServerMain();
 
 		// create a thread for asClient
 		// new Thread(() -> asClient(peerAddress.host, peerAddress.port)).start() ;
 		// System.out.println("already create a thread for asClient");
 
-		new Thread(() -> asServer(8119)).start();
-		System.out.println("already create a thread for asServer");
+		//new Thread(() -> asServer(8000)).start();
+		//System.out.println("already create a thread for asServer");
 
 		// asClient(peerAddress.host, peerAddress.port);
 		// asClient("45.113.235.184", 8111);
@@ -66,8 +72,9 @@ public class Peer {
 	private static void asClient(String ipAddress, int port) throws NumberFormatException, NoSuchAlgorithmException {
 		// As a client
 		try (Socket socket = new Socket(ipAddress, port)) {
-			DataInputStream clientIn = new DataInputStream(socket.getInputStream());
-			DataOutputStream clientOut = new DataOutputStream(socket.getOutputStream());
+			BufferedReader clientIn = new BufferedReader(new InputStreamReader(socket.getInputStream(),"UTF-8"));
+			BufferedWriter clientOut = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(),"UTF-8"));
+			
 			// BufferedReader clientBufferedReader = new BufferedReader(new
 			// InputStreamReader(clientIn, "UTF-8"));
 			// BufferedWriter clientBufferedWriter = new BufferedWriter(new
@@ -77,18 +84,15 @@ public class Peer {
 
 			System.out.println(info.toJson());
 
-			clientOut.writeUTF(info.toJson());
+			clientOut.write(info.toJson());
 			clientOut.flush();
 
 			// read the data from server
 			while (true) {
-				if (clientIn.available() > 0) {
-					info = Document.parse(clientIn.readUTF());
-					System.out.println(info.toJson());
-					// Document responsePeer = new HandleFileSystemEvent().responseDocument;
-
-					// clientOut.writeUTF(info.toJson());
-					new ServerMain(clientOut).HandleFileSystemEvent(info, clientOut,clientIn);
+				if (clientIn.readLine() != null) {
+					info = Document.parse(clientIn.readLine());
+					System.out.println(info.toJson()+"/r/n");
+					new ServerMain(clientOut).HandleFileSystemEvent(info, clientOut);
 				}
 			}
 
@@ -99,7 +103,7 @@ public class Peer {
 
 	}
 
-	private static void asServer(int port) {
+	private static void asServer(int port) throws NoSuchAlgorithmException {
 		// As a server
 		ServerSocketFactory socketFactory = ServerSocketFactory.getDefault();
 		try (ServerSocket serverSocket = socketFactory.createServerSocket(port)) {
@@ -107,19 +111,10 @@ public class Peer {
 
 			while (true) {
 				Socket listenClient = serverSocket.accept();
-				// create a new thread for each peer
-				new Thread(() -> {
-					try {
-						serverSocketConnection(listenClient);
-					} catch (NoSuchAlgorithmException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					} catch (IOException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
+				Thread serverThread = new Thread();
+				serverThread.start();
+				serverSocketConnection(listenClient);
 
-				}).start();
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -130,25 +125,32 @@ public class Peer {
 		Document serverInfoDocument = new Document();
 		try (Socket clientSocket = client) {
 
-			DataInputStream serverIn = new DataInputStream(clientSocket.getInputStream());
-			DataOutputStream serverOut = new DataOutputStream(clientSocket.getOutputStream());
+			BufferedReader serverIn = new BufferedReader(new InputStreamReader(clientSocket.getInputStream(),"UTF-8"));
+			BufferedWriter serverOut = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream(),"UTF-8"));
 			
-
-			serverInfoDocument = Document.parse(serverIn.readUTF());
-			System.out.println("Command Received : " + serverInfoDocument.toJson());
+			String readServer = serverIn.readLine();
+			if(readServer != null) {			
+			serverInfoDocument = Document.parse(readServer);
+			System.out.println("Command Received : " + serverInfoDocument.toJson() );
 
 			// response server address and port to client.
 			serverInfoDocument = new SystemEventMessage().HandShakeResponse();
-			serverOut.writeUTF(serverInfoDocument.toJson());
-			ServerMain serverObject = new ServerMain(serverOut);
+			serverOut.write(serverInfoDocument.toJson());
+		 
 			// start to synchronous
-			pathevents = serverObject.fileSystemManager.generateSyncEvents();
+			pathevents = new ServerMain(serverOut).fileSystemManager.generateSyncEvents();
 			for (FileSystemEvent fileSystemEvent : pathevents) {
 				new Thread(() -> {
 					try {
-						serverObject.processFileSystemEvent(fileSystemEvent);
+						new ServerMain(serverOut).processFileSystemEvent(fileSystemEvent);
 						//serverObject.HandleFileSystemEvent(fileSystemManager, serverInfoDocument, serverOut);
 					} catch (NumberFormatException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					} catch (NoSuchAlgorithmException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					} catch (IOException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					} 
@@ -192,15 +194,15 @@ public class Peer {
 			}).start();*/
 
 			while (true) {
-				if (serverIn.available() > 0) {
-					serverInfoDocument = Document.parse(serverIn.readUTF());
+				if (serverIn.readLine() != null) {
+					serverInfoDocument = Document.parse(serverIn.readLine());
 					System.out.println("Command Received: " + serverInfoDocument.toJson());
-					new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut,serverIn);
+					new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut);
 
 				}
 
 			}
 
-		}
+		}}
 	}
 }
