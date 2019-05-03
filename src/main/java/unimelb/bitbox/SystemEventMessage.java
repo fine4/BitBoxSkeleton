@@ -43,20 +43,37 @@ public class SystemEventMessage {
 		return info;
 	}
 	
-	public Document fileCreateResponseSuccess (Document fileDescriptorDoc, String fileName) {
-		Document info = new Document();
-		info.append("Command", "FILE_CREATE_RESPONSE");
-		info.append("FileDescriptor", fileDescriptorDoc);
-		info.append("pathName", fileName);
-		info.append("message", "file loader ready");
-		info.append("status", true);
-		return info;
+	public Document fileCreateResponseSuccess (Document info) {
+		Document returnInfo = new Document();
+		Document fileDescriptorDoc = new Document();
+		fileDescriptorDoc = (Document) info.get("FileDescriptor");
+		returnInfo.append("Command", "FILE_CREATE_RESPONSE");
+		returnInfo.append("FileDescriptor", fileDescriptorDoc);
+		returnInfo.append("pathName", info.getString("pathName"));
+		returnInfo.append("message", "file loader ready");
+		returnInfo.append("status", true);
+		return returnInfo;
 	}
-	public Document fileCreateResponseRefuseExist (Document fileDescriptorDoc, String fileName) {
-		Document info = new Document();
+	
+	public Document fileCreateResponseRefuseFail (Document info) {
+		Document returnInfo = new Document();
+		Document fileDescriptorDoc = new Document();
+		fileDescriptorDoc = (Document) info.get("FileDescriptor");
+		returnInfo.append("Command", "FILE_CREATE_RESPONSE");
+		returnInfo.append("FileDescriptor", fileDescriptorDoc);
+		returnInfo.append("pathName", info.getString("pathName"));
+		returnInfo.append("message", "There is a problem loading a file");
+		returnInfo.append("status", false);
+		return returnInfo;
+	}
+	
+	public Document fileCreateResponseRefuseExist (Document info) {
+		Document returnInfo = new Document();
+		Document fileDescriptorDoc = new Document();
+		fileDescriptorDoc = (Document) info.get("FileDescriptor");
 		info.append("Command", "FILE_CREATE_RESPONSE");
 		info.append("FileDescriptor", fileDescriptorDoc);
-		info.append("pathName", fileName);
+		info.append("pathName", info.getString("pathName"));
 		info.append("message", "pathname already exists");
 		info.append("status", false);
 		return info;
@@ -72,29 +89,30 @@ public class SystemEventMessage {
 	}
 	
 	public Document fileBytesRequest (Document info) {
-		//long longInfo = info.getLong();
+		Document returnInfo = new Document();
 		Document fileDescriptorDoc = new Document();
 		fileDescriptorDoc = (Document) info.get("FileDescriptor");
-		info.append("Command", "FILE_BYTES_REQUEST");
-		info.append("FileDescriptor", fileDescriptorDoc);
-		info.append("pathName", info.getString("pathName"));
-		info.append("position", 0);
-		info.append("length", Configuration.getConfigurationValue("blockSize"));
-		return info;
+		returnInfo.append("Command", "FILE_BYTES_REQUEST");
+		returnInfo.append("FileDescriptor", fileDescriptorDoc);
+		returnInfo.append("pathName", info.getString("pathName"));
+		returnInfo.append("position", 0);
+		returnInfo.append("length", Configuration.getConfigurationValue("blockSize"));
+		return returnInfo;
 	}
 	
-	public Document fileBytesResponse (Document info) {
+	public Document fileBytesResponse (Document info,String base64EncodeInfo) {
+		Document returnInfo = new Document();
 		Document fileDescriptorDoc = new Document();
 		fileDescriptorDoc = (Document) info.get("FileDescriptor");
-		info.append("Command", "FILE_BYTES_REQUEST");
-		info.append("FileDescriptor", fileDescriptorDoc);
-		info.append("pathName", info.getString("pathName"));
-		info.append("position", 0);
-		info.append("length", Configuration.getConfigurationValue("blockSize"));
-		info.append("content", "aGVsbG8K");
-		info.append("message", "successful read");
-		info.append("status", true);
-		return info;
+		returnInfo.append("Command", "FILE_BYTES_REPONSE");
+		returnInfo.append("FileDescriptor", fileDescriptorDoc);
+		returnInfo.append("pathName", info.getString("pathName"));
+		returnInfo.append("position", 0);
+		returnInfo.append("length", Configuration.getConfigurationValue("blockSize"));
+		returnInfo.append("content", base64EncodeInfo);
+		returnInfo.append("message", "successful read");
+		returnInfo.append("status", true);
+		return returnInfo;
 	}
 	
 	public Document fileDeleteRequest (Document fileDescriptorDoc, String fileName) {

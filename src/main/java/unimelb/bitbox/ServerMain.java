@@ -6,6 +6,10 @@ import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.util.logging.Logger;
 
+import org.apache.commons.codec.binary.Base64;
+
+//import org.apache.commons.codec.binary.Base64;
+
 import unimelb.bitbox.util.Configuration;
 import unimelb.bitbox.util.Document;
 import unimelb.bitbox.util.FileSystemManager;
@@ -18,15 +22,18 @@ public class ServerMain implements FileSystemObserver {
 	private static Logger log = Logger.getLogger(ServerMain.class.getName());
 	private Document responseInfo;
 	protected FileSystemManager fileSystemManager;
-	FileDescriptor fileDescriptor;
+	protected FileDescriptor fileDescriptor;
 	private DataOutputStream serverOut;
 	public Document responseDocument = new Document();
-	ByteBuffer revFile = ByteBuffer.allocate(Integer.parseInt(Configuration.getConfigurationValue("blockSize")));
+	Base64 encoder = new Base64();
+	
+	int bufferSize = Integer.parseInt(Configuration.getConfigurationValue("blockSize"));		
+	byte[] buffer = new byte[bufferSize];
 	//public Document responseInfo = new Document();
 
 	
 	public ServerMain() throws NumberFormatException, IOException, NoSuchAlgorithmException {
-		fileSystemManager = new FileSystemManager(Configuration.getConfigurationValue("path"), this);
+		//fileSystemManager = new FileSystemManager(Configuration.getConfigurationValue("path"), this);
 
 	}
 	public ServerMain(DataOutputStream serverOut)throws NumberFormatException, IOException, NoSuchAlgorithmException {
@@ -91,58 +98,81 @@ public class ServerMain implements FileSystemObserver {
 
 	}
 	
-	public void HandleFileSystemEvent (FileSystemManager fileSystemManager, Document info,DataOutputStream serverOut) throws NoSuchAlgorithmException, IOException {
-		if (info.get("Command").equals("FILE_CREATE_REQUEST")) {
-			responseDocument = FileCreateResponse(fileSystemManager, info);
-			
-			serverOut.writeUTF(responseDocument.toJson());
-			responseDocument = new SystemEventMessage().fileBytesRequest(info);
-			serverOut.writeUTF(responseDocument.toJson());
-		}
-		if (info.get("Command").equals("FILE_BYTES_REQUEST")) {
-			
-			Document fileDescriptorDoc = (Document) info.get("FileDescriptor");
-			String fileMd5 = fileDescriptorDoc.getString("md5");
-			long position = info.getLong("position");
-			long length = (long) info.get("length");
-			revFile = fileSystemManager.readFile(fileMd5, position, length);
-		}
-		
-		if(info.get("Command").equals("FILE_MODIFY_REQUEST")) {
-			Document fileDescriptorDoc = (Document) info.get("FileDescriptor");
-			String fileMd5 = fileDescriptorDoc.getString("md5");
-			long fileLastModified = fileDescriptorDoc.getLong("lastModified");
-			fileSystemManager.modifyFileLoader(info.getString("pathName"), fileMd5, fileLastModified);
-		}
-		
-		if (info.get("Command").equals("FILE_DELETE_REQUEST")) {
-			Document fileDescriptorDoc = (Document) info.get("FileDescriptor");
-			String fileMd5 = fileDescriptorDoc.getString("md5");
-			long fileLastModified = fileDescriptorDoc.getLong("lastModified");
-			boolean result = fileSystemManager.deleteFile(info.getString("pathName"), fileLastModified, fileMd5);
-			serverOut.writeBoolean(result);
-		}
-		
-		if(info.get("Command").equals("DIRECTORY_CREATE_REQUEST")) {
-			boolean result = fileSystemManager.makeDirectory(info.getString("pathName"));
-			serverOut.writeBoolean(result);
-		}
-		
-		if(info.get("Command").equals("DIRECTORY_DELETE_REQUEST")) {
-			boolean result = fileSystemManager.deleteDirectory(info.getString("pathName"));
-			serverOut.writeBoolean(result);
-		}
-		
+	public void HandleFileSystemEvent (Document info,DataOutputStream serverOut) throws NoSuchAlgorithmException, IOException {
 
+		String value = info.getString("Command");
+		  switch (value) {
+		  case "FILE_CREATE_REQUEST":{
+		   responseDocument = FileCreateResponse(info);		   
+		   serverOut.writeUTF(responseDocument.toJson());
+		   serverOut.flush();
+		   responseDocument = new SystemEventMessage().fileBytesRequest(info);
+		   serverOut.writeUTF(responseDocument.toJson());
+		   serverOut.flush();
+		  }break;
+		  
+		  case "FILE_BYTES_REQUEST":{
+		   responseDocument = SendFileBuffer(info ,serverOut);
+		   serverOut.writeUTF(responseDocument.toJson());
+		   serverOut.flush();
+		  }break;
+		  
+		  case "FILE_BYTES_RESPONSE" :{
+			boolean recvFileBuffer = ReceveiedFileBuffer(info);
+			if (recvFileBuffer) {
+				boolean checkWriteComplete = fileSystemManager.checkWriteComplete(info.getString("pathName"));
+				if(!checkWriteComplete) {
+					responseDocument = new SystemEventMessage().fileBytesRequest(info);
+					serverOut.writeUTF(responseDocument.toJson());
+					serverOut.flush();
+				}else {
+					responseDocument = new SystemEventMessage().fileCreateResponseSuccess(info);
+					serverOut.writeUTF(responseDocument.toJson());
+					serverOut.flush();
+				}
+			}
+			else {
+				responseDocument = new SystemEventMessage().fileCreateResponseRefuseFail(info);
+				serverOut.writeUTF(responseDocument.toJson());
+				serverOut.flush();
+			}	  
+		  }
+		 
+		  case "FILE_MODIFY_REQUEST":{
+		   Document fileDescriptorDoc = (Document) info.get("FileDescriptor");
+		   String fileMd5 = fileDescriptorDoc.getString("md5");
+		   long fileLastModified = fileDescriptorDoc.getLong("lastModified");
+		   fileSystemManager.modifyFileLoader(info.getString("pathName"), fileMd5, fileLastModified);
+		   
+		  }break;
+		  case "FILE_DELETE_REQUEST":{
+		   Document fileDescriptorDoc = (Document) info.get("FileDescriptor");
+		   String fileMd5 = fileDescriptorDoc.getString("md5");
+		   long fileLastModified = fileDescriptorDoc.getLong("lastModified");
+		   boolean result = fileSystemManager.deleteFile(info.getString("pathName"), fileLastModified, fileMd5);
+		   serverOut.writeBoolean(result);
+		   
+		  }break;
+		  case "DIRECTORY_CREATE_REQUEST":{
+		   boolean result = fileSystemManager.makeDirectory(info.getString("pathName"));
+		   serverOut.writeBoolean(result);
+		   
+		  }break;
+		  case "DIRECTORY_DELETE_REQUEST":{
+		   boolean result = fileSystemManager.deleteDirectory(info.getString("pathName"));
+		   serverOut.writeBoolean(result);
+		   
+		  }break;
+		  }
 	}
 	
 	
 	
-	public Document FileCreateResponse (FileSystemManager fileSystemManager, Document info) {
+	public Document FileCreateResponse (Document info) {
 		Document tempInfo = new Document();
-		Document fileDescriptor = (Document) info.get("fileDescriptor");
+		Document fileDescriptor = (Document) info.get("FileDescriptor");
 		if (fileSystemManager.isSafePathName(info.getString("pathName"))) {
-			if(fileSystemManager.fileNameExists(info.getString("pathName"))) {
+			if(!fileSystemManager.fileNameExists(info.getString("pathName"))) {
 				String fileMd5 = fileDescriptor.getString("md5");
 				long fileLastModified = fileDescriptor.getLong("lastModified");
 				long fileSize = fileDescriptor.getLong("fileSize");
@@ -150,7 +180,7 @@ public class ServerMain implements FileSystemObserver {
 					fileSystemManager.createFileLoader(info.getString("pathName"), fileMd5, fileSize, fileLastModified);
 					try {
 						if(!fileSystemManager.checkShortcut(info.getString("pathName"))) {
-							tempInfo = new SystemEventMessage().fileCreateResponseSuccess(fileDescriptor, info.getString("pathName"));		
+							tempInfo = new SystemEventMessage().fileCreateResponseSuccess(info);		
 							return tempInfo;
 						}
 					} catch (NoSuchAlgorithmException e) {
@@ -169,7 +199,7 @@ public class ServerMain implements FileSystemObserver {
 				}
 				
 			}else {
-				tempInfo = new SystemEventMessage().fileCreateResponseRefuseExist(fileDescriptor, info.getString("pathName"));
+				tempInfo = new SystemEventMessage().fileCreateResponseRefuseExist(info);
 				return tempInfo;
 			}
 		}else {
@@ -179,5 +209,98 @@ public class ServerMain implements FileSystemObserver {
 		return tempInfo;
 	}
 	
+	
+	public void readFileBuffer (ByteBuffer recvFile,DataOutputStream serverOut) throws IOException {
+		boolean tag = true;
+		int bufferSize = Integer.parseInt(Configuration.getConfigurationValue("blockSize"));		
+		byte[] buffer = new byte[bufferSize];
+		int remainingSize = recvFile.capacity();
+		int position =0;
+		
+		while (tag) {
+			if (recvFile.capacity() <= bufferSize ) {
+				recvFile.rewind();
+				recvFile.get(buffer, 0, recvFile.capacity()-1);
+				serverOut.write(buffer);
+				tag = false;
+			}
+			while(remainingSize > bufferSize){
+				remainingSize -=bufferSize;
+				recvFile.get(buffer,position,buffer.length);
+				position += bufferSize;
+				serverOut.write(buffer);
+			}
+			if (remainingSize > 0) {
+				recvFile.get(buffer,position,remainingSize);
+				serverOut.write(buffer);
+				tag = false;
+			}
+		}
+		
+		
+	}
 
+	public Document SendFileBuffer (Document info,DataOutputStream serverOut) throws NumberFormatException, NoSuchAlgorithmException, IOException {
+		//get information needed to be sent.
+		Document sendFileInfo = new Document();
+		Document fileDescriptorDoc = (Document) info.get("FileDescriptor");
+		String fileMd5 = fileDescriptorDoc.getString("md5");
+		long position = info.getLong("position");
+		long length = fileDescriptorDoc.getLong("fileSize");
+		int fileSize = Integer.parseInt(fileDescriptorDoc.getString("fileSize"));
+		ByteBuffer revFile = ByteBuffer.allocate(fileSize);
+		revFile = new ServerMain(serverOut).fileSystemManager.readFile(fileMd5, position, length);
+
+
+		int remaining = revFile.limit();
+		int bufferPosition =0;
+		revFile.rewind();
+		if(revFile.capacity() < bufferSize) {			
+			responseInfo = convertBufferToBase64StringInfo(revFile, buffer, info);
+			serverOut.writeUTF(responseInfo.toJson());
+			serverOut.flush();
+		}else {
+			while (remaining != 0) {
+				revFile.clear();
+				revFile.get(buffer, bufferPosition, bufferSize);
+				responseInfo = convertBufferToBase64StringInfo(revFile, buffer, info);
+				serverOut.writeUTF(responseInfo.toJson());
+				serverOut.flush();
+				position = bufferSize+1;
+			}
+		}
+		
+		
+
+		
+		return sendFileInfo;		
+	}
+	public Boolean ReceveiedFileBuffer(Document info) throws IOException, NumberFormatException, NoSuchAlgorithmException {
+		String content = info.getString("content");
+		byte[] buffer = Base64.decodeBase64(content.getBytes());
+		ByteBuffer infoBytebuffer = ByteBuffer.wrap(buffer);
+		Long position = Long.parseLong(info.getString("position"));
+		boolean writeResult = new ServerMain(serverOut).fileSystemManager.writeFile(info.getString("pathName"),
+				infoBytebuffer, position);
+
+		return writeResult;
+		
+	}
+	
+	public Document convertBufferToBase64StringInfo (ByteBuffer revFile,byte[] buffer, Document info) {
+		Document sendFileInfo = new Document();
+		revFile.get(buffer, 0, revFile.remaining());
+		buffer = Base64.encodeBase64(buffer);
+		String base64EncodeInfo = new String(buffer);
+		sendFileInfo = new SystemEventMessage().fileBytesResponse(info, base64EncodeInfo);
+		return sendFileInfo;
+		
+	}
+	
+	public Document convertBase64StringToBuffer () {
+		Document receivedFileInfo = new Document();
+		return receivedFileInfo;
+		
+	}
 }
+
