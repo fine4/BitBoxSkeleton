@@ -71,12 +71,12 @@ public class SystemEventMessage {
 		Document returnInfo = new Document();
 		Document fileDescriptorDoc = new Document();
 		fileDescriptorDoc = (Document) info.get("FileDescriptor");
-		info.append("Command", "FILE_CREATE_RESPONSE");
-		info.append("FileDescriptor", fileDescriptorDoc);
-		info.append("pathName", info.getString("pathName"));
-		info.append("message", "pathname already exists");
-		info.append("status", false);
-		return info;
+		returnInfo.append("Command", "FILE_CREATE_RESPONSE");
+		returnInfo.append("FileDescriptor", fileDescriptorDoc);
+		returnInfo.append("pathName", info.getString("pathName"));
+		returnInfo.append("message", "pathname already exists");
+		returnInfo.append("status", false);
+		return returnInfo;
 	}
 	public Document fileCreateResponseRefuse (Document fileDescriptorDoc, String fileName) {
 		Document info = new Document();

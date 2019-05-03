@@ -1,5 +1,6 @@
 package unimelb.bitbox;
 
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -98,7 +99,7 @@ public class ServerMain implements FileSystemObserver {
 
 	}
 	
-	public void HandleFileSystemEvent (Document info,DataOutputStream serverOut) throws NoSuchAlgorithmException, IOException {
+	public void HandleFileSystemEvent (Document info,DataOutputStream serverOut,DataInputStream serverIn) throws NoSuchAlgorithmException, IOException {
 
 		String value = info.getString("Command");
 		  switch (value) {
@@ -118,24 +119,8 @@ public class ServerMain implements FileSystemObserver {
 		  }break;
 		  
 		  case "FILE_BYTES_RESPONSE" :{
-			boolean recvFileBuffer = ReceveiedFileBuffer(info);
-			if (recvFileBuffer) {
-				boolean checkWriteComplete = fileSystemManager.checkWriteComplete(info.getString("pathName"));
-				if(!checkWriteComplete) {
-					responseDocument = new SystemEventMessage().fileBytesRequest(info);
-					serverOut.writeUTF(responseDocument.toJson());
-					serverOut.flush();
-				}else {
-					responseDocument = new SystemEventMessage().fileCreateResponseSuccess(info);
-					serverOut.writeUTF(responseDocument.toJson());
-					serverOut.flush();
-				}
-			}
-			else {
-				responseDocument = new SystemEventMessage().fileCreateResponseRefuseFail(info);
-				serverOut.writeUTF(responseDocument.toJson());
-				serverOut.flush();
-			}	  
+			ReceveiedFileBuffer(info);
+			 
 		  }
 		 
 		  case "FILE_MODIFY_REQUEST":{
@@ -247,27 +232,33 @@ public class ServerMain implements FileSystemObserver {
 		String fileMd5 = fileDescriptorDoc.getString("md5");
 		long position = info.getLong("position");
 		long length = fileDescriptorDoc.getLong("fileSize");
-		int fileSize = Integer.parseInt(fileDescriptorDoc.getString("fileSize"));
+		@SuppressWarnings("deprecation")
+		int fileSize = new Long(fileDescriptorDoc.getLong("fileSize")).intValue();
 		ByteBuffer revFile = ByteBuffer.allocate(fileSize);
 		revFile = new ServerMain(serverOut).fileSystemManager.readFile(fileMd5, position, length);
 
 
-		int remaining = revFile.limit();
-		int bufferPosition =0;
+		int remaining = revFile.capacity();
+		int bufferPosition = 0;
 		revFile.rewind();
 		if(revFile.capacity() < bufferSize) {			
 			responseInfo = convertBufferToBase64StringInfo(revFile, buffer, info);
 			serverOut.writeUTF(responseInfo.toJson());
 			serverOut.flush();
 		}else {
-			while (remaining != 0) {
+			while (remaining > 0) {
 				revFile.clear();
 				revFile.get(buffer, bufferPosition, bufferSize);
-				responseInfo = convertBufferToBase64StringInfo(revFile, buffer, info);
+				buffer = Base64.encodeBase64(buffer);
+				String base64EncodeInfo = new String(buffer);
+				responseInfo = new SystemEventMessage().fileBytesResponse(info, base64EncodeInfo);
+				//responseInfo = convertBufferToBase64StringInfo(revFile, buffer, info);
 				serverOut.writeUTF(responseInfo.toJson());
 				serverOut.flush();
 				position = bufferSize+1;
+				remaining -= bufferSize;
 			}
+			
 		}
 		
 		
@@ -276,12 +267,35 @@ public class ServerMain implements FileSystemObserver {
 		return sendFileInfo;		
 	}
 	public Boolean ReceveiedFileBuffer(Document info) throws IOException, NumberFormatException, NoSuchAlgorithmException {
+		int fileSize = Integer.parseInt((String) info.get("fileSize"));
+		ByteBuffer tempStoreBuffer = ByteBuffer.allocate(fileSize);
 		String content = info.getString("content");
 		byte[] buffer = Base64.decodeBase64(content.getBytes());
 		ByteBuffer infoBytebuffer = ByteBuffer.wrap(buffer);
 		Long position = Long.parseLong(info.getString("position"));
+		int bufferPosition = 0;
 		boolean writeResult = new ServerMain(serverOut).fileSystemManager.writeFile(info.getString("pathName"),
 				infoBytebuffer, position);
+		
+		if (writeResult) {
+			boolean checkWriteComplete = fileSystemManager.checkWriteComplete(info.getString("pathName"));
+			if(!checkWriteComplete) {
+				tempStoreBuffer.put(buffer, bufferPosition, buffer.length);
+				responseDocument = new SystemEventMessage().fileBytesRequest(info);
+				serverOut.writeUTF(responseDocument.toJson());
+				serverOut.flush();
+				bufferPosition = buffer.length+1;
+			}else {
+				responseDocument = new SystemEventMessage().fileCreateResponseSuccess(info);
+				serverOut.writeUTF(responseDocument.toJson());
+				serverOut.flush();
+			}
+		}
+		else {
+			responseDocument = new SystemEventMessage().fileCreateResponseRefuseFail(info);
+			serverOut.writeUTF(responseDocument.toJson());
+			serverOut.flush();
+		}	 
 
 		return writeResult;
 		

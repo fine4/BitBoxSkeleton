@@ -88,7 +88,7 @@ public class Peer {
 					// Document responsePeer = new HandleFileSystemEvent().responseDocument;
 
 					// clientOut.writeUTF(info.toJson());
-					new ServerMain(clientOut).HandleFileSystemEvent(info, clientOut);
+					new ServerMain(clientOut).HandleFileSystemEvent(info, clientOut,clientIn);
 				}
 			}
 
@@ -197,7 +197,7 @@ public class Peer {
 
 					serverInfoDocument = Document.parse(serverIn.readUTF());
 					System.out.println("Command Received: " + serverInfoDocument.toJson());
-					new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut);
+					new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut,serverIn);
 
 				}
 
