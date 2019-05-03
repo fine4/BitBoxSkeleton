@@ -104,7 +104,7 @@ public class SystemEventMessage {
 		Document returnInfo = new Document();
 		Document fileDescriptorDoc = new Document();
 		fileDescriptorDoc = (Document) info.get("FileDescriptor");
-		returnInfo.append("Command", "FILE_BYTES_REPONSE");
+		returnInfo.append("Command", "FILE_BYTES_RESPONSE");
 		returnInfo.append("FileDescriptor", fileDescriptorDoc);
 		returnInfo.append("pathName", info.getString("pathName"));
 		returnInfo.append("position", 0);

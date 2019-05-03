@@ -118,10 +118,9 @@ public class ServerMain implements FileSystemObserver {
 		   serverOut.flush();
 		  }break;
 		  
-		  case "FILE_BYTES_RESPONSE" :{
-			ReceveiedFileBuffer(info);
-			 
-		  }
+		  case "FILE_BYTES_RESPONSE":{
+			ReceveiedFileBuffer(info); 
+		  }break;
 		 
 		  case "FILE_MODIFY_REQUEST":{
 		   Document fileDescriptorDoc = (Document) info.get("FileDescriptor");
@@ -194,36 +193,7 @@ public class ServerMain implements FileSystemObserver {
 		return tempInfo;
 	}
 	
-	
-	public void readFileBuffer (ByteBuffer recvFile,DataOutputStream serverOut) throws IOException {
-		boolean tag = true;
-		int bufferSize = Integer.parseInt(Configuration.getConfigurationValue("blockSize"));		
-		byte[] buffer = new byte[bufferSize];
-		int remainingSize = recvFile.capacity();
-		int position =0;
-		
-		while (tag) {
-			if (recvFile.capacity() <= bufferSize ) {
-				recvFile.rewind();
-				recvFile.get(buffer, 0, recvFile.capacity()-1);
-				serverOut.write(buffer);
-				tag = false;
-			}
-			while(remainingSize > bufferSize){
-				remainingSize -=bufferSize;
-				recvFile.get(buffer,position,buffer.length);
-				position += bufferSize;
-				serverOut.write(buffer);
-			}
-			if (remainingSize > 0) {
-				recvFile.get(buffer,position,remainingSize);
-				serverOut.write(buffer);
-				tag = false;
-			}
-		}
-		
-		
-	}
+
 
 	public Document SendFileBuffer (Document info,DataOutputStream serverOut) throws NumberFormatException, NoSuchAlgorithmException, IOException {
 		//get information needed to be sent.
@@ -237,26 +207,29 @@ public class ServerMain implements FileSystemObserver {
 		ByteBuffer revFile = ByteBuffer.allocate(fileSize);
 		revFile = new ServerMain(serverOut).fileSystemManager.readFile(fileMd5, position, length);
 
-
-		int remaining = revFile.capacity();
-		int bufferPosition = 0;
+		byte[] lastBuffer = new byte[4096];
 		revFile.rewind();
 		if(revFile.capacity() < bufferSize) {			
 			responseInfo = convertBufferToBase64StringInfo(revFile, buffer, info);
 			serverOut.writeUTF(responseInfo.toJson());
 			serverOut.flush();
 		}else {
-			while (remaining > 0) {
-				revFile.clear();
-				revFile.get(buffer, bufferPosition, bufferSize);
+			while (revFile.hasRemaining()) {
+				if(revFile.remaining() < bufferSize) {
+					revFile.get(lastBuffer, 0, revFile.remaining());
+					buffer = Base64.encodeBase64(buffer);
+					String base64EncodeInfo = new String(buffer);
+					responseInfo = new SystemEventMessage().fileBytesResponse(info, base64EncodeInfo);
+					serverOut.writeUTF(responseInfo.toJson());
+					serverOut.flush();
+				} else {
+				revFile.get(buffer, 0, bufferSize);
 				buffer = Base64.encodeBase64(buffer);
 				String base64EncodeInfo = new String(buffer);
 				responseInfo = new SystemEventMessage().fileBytesResponse(info, base64EncodeInfo);
-				//responseInfo = convertBufferToBase64StringInfo(revFile, buffer, info);
 				serverOut.writeUTF(responseInfo.toJson());
-				serverOut.flush();
-				position = bufferSize+1;
-				remaining -= bufferSize;
+				serverOut.flush();	
+				}
 			}
 			
 		}
@@ -267,14 +240,18 @@ public class ServerMain implements FileSystemObserver {
 		return sendFileInfo;		
 	}
 	public Boolean ReceveiedFileBuffer(Document info) throws IOException, NumberFormatException, NoSuchAlgorithmException {
-		int fileSize = Integer.parseInt((String) info.get("fileSize"));
-		ByteBuffer tempStoreBuffer = ByteBuffer.allocate(fileSize);
+		Document fileDescriptor = new Document();
+		fileDescriptor = (Document) info.get("fileDescriptor");
+		long fileSize = fileDescriptor.getLong("fileSize");
+		int fileSizeInt = new Long(fileSize).intValue();
+		ByteBuffer tempStoreBuffer = ByteBuffer.allocate(fileSizeInt);
 		String content = info.getString("content");
 		byte[] buffer = Base64.decodeBase64(content.getBytes());
 		ByteBuffer infoBytebuffer = ByteBuffer.wrap(buffer);
-		Long position = Long.parseLong(info.getString("position"));
+		long position = info.getLong("position");
 		int bufferPosition = 0;
-		boolean writeResult = new ServerMain(serverOut).fileSystemManager.writeFile(info.getString("pathName"),
+		
+		boolean writeResult = fileSystemManager.writeFile(info.getString("pathName"),
 				infoBytebuffer, position);
 		
 		if (writeResult) {

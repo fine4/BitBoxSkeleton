@@ -193,8 +193,6 @@ public class Peer {
 
 			while (true) {
 				if (serverIn.available() > 0) {
-
-
 					serverInfoDocument = Document.parse(serverIn.readUTF());
 					System.out.println("Command Received: " + serverInfoDocument.toJson());
 					new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut,serverIn);
