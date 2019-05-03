@@ -112,9 +112,12 @@ public class ServerMain implements FileSystemObserver {
 			responseDocument = FileCreateResponse(info);
 			serverOut.writeUTF(responseDocument.toJson());
 			serverOut.flush();
-			responseDocument = new SystemEventMessage().fileBytesRequest(info);
-			serverOut.writeUTF(responseDocument.toJson());
-			serverOut.flush();
+			
+			if(responseDocument.getBoolean("status")) {
+				responseDocument = new SystemEventMessage().fileBytesRequest(info);
+				serverOut.writeUTF(responseDocument.toJson());
+				serverOut.flush();
+			}
 		}
 			break;
 
@@ -166,14 +169,14 @@ public class ServerMain implements FileSystemObserver {
 			Document fileDescriptorDoc = (Document) info.get("fileDescriptor");
 			String fileMd5 = fileDescriptorDoc.getString("md5");
 			long fileLastModified = fileDescriptorDoc.getLong("lastModified");
-			boolean result = fileSystemManager.deleteFile(info.getString("pathName"), fileLastModified, fileMd5);
-			serverOut.writeBoolean(result);
-
+			fileSystemManager.deleteFile(info.getString("pathName"), fileLastModified, fileMd5);
+			responseDocument = new SystemEventMessage().directoryDeleteReponseSuccess(info);
+			serverOut.writeUTF(responseDocument.toJson());
 		}
 			break;
 		case "DIRECTORY_CREATE_REQUEST": {
-			boolean result = fileSystemManager.makeDirectory(info.getString("pathName"));
-			serverOut.writeBoolean(result);
+			fileSystemManager.makeDirectory(info.getString("pathName"));
+			responseDocument = new SystemEventMessage().directoryCreateReponseSuccess(info);
 
 		}
 			break;
@@ -226,34 +229,6 @@ public class ServerMain implements FileSystemObserver {
 		return tempInfo;
 	}
 
-	public void readFileBuffer(ByteBuffer recvFile, DataOutputStream serverOut) throws IOException {
-		boolean tag = true;
-		int bufferSize = Integer.parseInt(Configuration.getConfigurationValue("blockSize"));
-		byte[] buffer = new byte[bufferSize];
-		int remainingSize = recvFile.capacity();
-		int position = 0;
-
-		while (tag) {
-			if (recvFile.capacity() <= bufferSize) {
-				recvFile.rewind();
-				recvFile.get(buffer, 0, recvFile.capacity() - 1);
-				serverOut.write(buffer);
-				tag = false;
-			}
-			while (remainingSize > bufferSize) {
-				remainingSize -= bufferSize;
-				recvFile.get(buffer, position, buffer.length);
-				position += bufferSize;
-				serverOut.write(buffer);
-			}
-			if (remainingSize > 0) {
-				recvFile.get(buffer, position, remainingSize);
-				serverOut.write(buffer);
-				tag = false;
-			}
-		}
-
-	}
 
 	public void SendFileBuffer (Document info,DataOutputStream serverOut) throws NumberFormatException, NoSuchAlgorithmException, IOException {
 		//get information needed to be sent.
@@ -265,7 +240,7 @@ public class ServerMain implements FileSystemObserver {
 		int fileSize = new Long(fileDescriptorDoc.getLong("fileSize")).intValue();
 		ByteBuffer revFile = ByteBuffer.allocate(fileSize);
 		revFile = fileSystemManager.readFile(fileMd5, position, length);
-	
+		
 		revFile.rewind();
 		if(revFile.capacity() < bufferSize) {			
 			responseInfo = convertBufferToBase64StringInfo(revFile, buffer, info);
@@ -273,8 +248,23 @@ public class ServerMain implements FileSystemObserver {
 			serverOut.flush();
 		}else {
 			while (revFile.hasRemaining()) {
-				if(revFile.remaining() < buffer.length) {
-					revFile.get(buffer, 0, revFile.remaining());
+				int remainLength = revFile.remaining();
+				int bufferLen = buffer.length;
+				System.out.println(remainLength);
+				System.out.println(bufferLen);
+				if(revFile.remaining() < bufferSize) {
+					System.out.println(bufferSize);
+					System.out.println(revFile.remaining());
+					byte[] lastReaminBuffer = new byte[revFile.remaining()];
+					revFile.get(lastReaminBuffer, 0, revFile.remaining());
+					lastReaminBuffer = Base64.encodeBase64(lastReaminBuffer);
+					String base64EncodeInfo = new String(lastReaminBuffer);
+					info.append("length", revFile.remaining());
+					responseInfo = new SystemEventMessage().fileBytesResponse(info, base64EncodeInfo);
+					serverOut.writeUTF(responseInfo.toJson());
+					serverOut.flush();
+				}else {
+					revFile.get(buffer, 0, bufferSize);
 					buffer = Base64.encodeBase64(buffer);
 					String base64EncodeInfo = new String(buffer);
 					responseInfo = new SystemEventMessage().fileBytesResponse(info, base64EncodeInfo);
@@ -303,9 +293,9 @@ public class ServerMain implements FileSystemObserver {
 		int bufferPosition = 0;
 		boolean checkWriteComplete = fileSystemManager.checkWriteComplete(info.getString("pathName"));
 		if (!checkWriteComplete) {
-			if (!fileSystemManager.writeFile(info.getString("pathName"), infoBytebuffer, position)) {
-				checkWriteComplete = fileSystemManager.checkWriteComplete(info.getString("pathName"));
-				if (!checkWriteComplete) {
+			fileSystemManager.writeFile(info.getString("pathName"), infoBytebuffer, position);
+			checkWriteComplete = fileSystemManager.checkWriteComplete(info.getString("pathName"));
+			if (!checkWriteComplete) {
 					tempStoreBuffer.put(buffer, bufferPosition, buffer.length);
 					responseDocument = new SystemEventMessage().fileBytesRequest(info);
 					serverOut.writeUTF(responseDocument.toJson());
@@ -316,7 +306,7 @@ public class ServerMain implements FileSystemObserver {
 					serverOut.writeUTF(responseDocument.toJson());
 					serverOut.flush();
 				}
-			}
+			
 
 		} else {
 			responseDocument = new SystemEventMessage().fileCreateResponseRefuseFail(info);
@@ -328,9 +318,11 @@ public class ServerMain implements FileSystemObserver {
 
 	public Document convertBufferToBase64StringInfo(ByteBuffer revFile, byte[] buffer, Document info) {
 		Document sendFileInfo = new Document();
-		revFile.get(buffer, 0, revFile.remaining());
-		buffer = Base64.encodeBase64(buffer);
-		String base64EncodeInfo = new String(buffer);
+		byte[] lastReaminBuffer = new byte[revFile.remaining()];
+		revFile.get(lastReaminBuffer, 0, revFile.remaining());
+		lastReaminBuffer = Base64.encodeBase64(lastReaminBuffer);
+		String base64EncodeInfo = new String(lastReaminBuffer);
+		info.append("length", revFile.remaining());
 		sendFileInfo = new SystemEventMessage().fileBytesResponse(info, base64EncodeInfo);
 		return sendFileInfo;
 

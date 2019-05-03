@@ -18,6 +18,7 @@ import com.alibaba.fastjson.JSONObject;
 
 import unimelb.bitbox.util.Configuration;
 import unimelb.bitbox.util.Document;
+import unimelb.bitbox.util.FileSystemManager.FileSystemEvent;
 import unimelb.bitbox.util.HostPort;
 
 public class Peer {
@@ -39,7 +40,7 @@ public class Peer {
 
 
 		// create a thread for asClient
-		new Thread(() -> {
+		/*new Thread(() -> {
 			try {
 				asClient(peerAddress.host, peerAddress.port);
 			} catch (NumberFormatException e) {
@@ -50,10 +51,10 @@ public class Peer {
 				e.printStackTrace();
 			}
 		}).start() ;
-		System.out.println("already create a thread for asClient");
+		System.out.println("already create a thread for asClient");*/
 		
-		//int localPort = Integer.parseInt(Configuration.getConfigurationValue("port"));
-		//new Thread(() -> asServer(localPort)).start();
+		int localPort = Integer.parseInt(Configuration.getConfigurationValue("port"));
+		new Thread(() -> asServer(localPort)).start();
 
 		// create a thread for asClient
 		// new Thread(() -> asClient(peerAddress.host, peerAddress.port)).start() ;
@@ -183,7 +184,13 @@ public class Peer {
 						serverOut.writeUTF(serverInfoDocument.toJson());
 						peerlist.add(receive);
 						new ServerMain(serverOut);
-						ServerMain.fileSystemManager.generateSyncEvents();
+						ArrayList<FileSystemEvent> pathevents = ServerMain.fileSystemManager.generateSyncEvents();
+						for (FileSystemEvent fileSystemEvent : pathevents) {
+							Thread thread = new Thread();
+							thread.start();
+							new ServerMain(serverOut).processFileSystemEvent(fileSystemEvent);
+						}
+						
 
 						while (true) { 
 

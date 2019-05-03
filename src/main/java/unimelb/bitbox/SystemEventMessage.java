@@ -73,12 +73,12 @@ public class SystemEventMessage {
 		Document returnInfo = new Document();
 		Document fileDescriptorDoc = new Document();
 		fileDescriptorDoc = (Document) info.get("fileDescriptor");
-		info.append("command", "FILE_CREATE_RESPONSE");
-		info.append("fileDescriptor", fileDescriptorDoc);
-		info.append("pathName", info.getString("pathName"));
-		info.append("message", "pathname already exists");
-		info.append("status", false);
-		return info;
+		returnInfo.append("command", "FILE_CREATE_RESPONSE");
+		returnInfo.append("fileDescriptor", fileDescriptorDoc);
+		returnInfo.append("pathName", info.getString("pathName"));
+		returnInfo.append("message", "pathname already exists");
+		returnInfo.append("status", false);
+		return returnInfo;
 	}
 	public Document fileCreateResponseRefuse (Document fileDescriptorDoc, String fileName) {
 		Document info = new Document();
@@ -106,7 +106,7 @@ public class SystemEventMessage {
 		Document returnInfo = new Document();
 		Document fileDescriptorDoc = new Document();
 		fileDescriptorDoc = (Document) info.get("fileDescriptor");
-		returnInfo.append("command", "FILE_BYTES_REPONSE");
+		returnInfo.append("command", "FILE_BYTES_RESPONSE");
 		returnInfo.append("fileDescriptor", fileDescriptorDoc);
 		returnInfo.append("pathName", info.getString("pathName"));
 		returnInfo.append("position", 0);
@@ -184,53 +184,53 @@ public class SystemEventMessage {
 	}
 	
 	public Document directoryCreateRequest (FileSystemEvent fileSystemEvent) {
-		Document info = new Document();
-		info.append("command", "DIRECTORY_CREATE_REQUEST");
-		info.append("pathName", fileSystemEvent.pathName);
-		return info;
+		Document returnInfo = new Document();
+		returnInfo.append("command", "DIRECTORY_CREATE_REQUEST");
+		returnInfo.append("pathName", fileSystemEvent.name);
+		return returnInfo;
 	}
 	
-	public Document directoryCreateReponseSuccess (FileSystemEvent fileSystemEvent) {
-		Document info = new Document();
-		info.append("command", "DIRECTORY_CREATE_RESPONSE");
-		info.append("pathName", fileSystemEvent.pathName);
-		info.append("message", "directory created");
-		info.append("status", true);
-		return info;
+	public Document directoryCreateReponseSuccess (Document info) {
+		Document returnInfo = new Document();
+		returnInfo.append("command", "DIRECTORY_CREATE_RESPONSE");
+		returnInfo.append("pathName", info.getString("pathName"));
+		returnInfo.append("message", "directory created");
+		returnInfo.append("status", true);
+		return returnInfo;
 	}
 	
-	public Document directoryCreateReponseFail (FileSystemEvent fileSystemEvent) {
-		Document info = new Document();
-		info.append("command", "DIRECTORY_CREATE_RESPONSE");
-		info.append("pathName", fileSystemEvent.pathName);
-		info.append("message", "there was a problem creating the directory");
-		info.append("status", false);
-		return info;
+	public Document directoryCreateReponseFail (Document info) {
+		Document returnInfo = new Document();
+		returnInfo.append("command", "DIRECTORY_CREATE_RESPONSE");
+		returnInfo.append("pathName", info.getString("pathName"));
+		returnInfo.append("message", "there was a problem creating the directory");
+		returnInfo.append("status", false);
+		return returnInfo;
 	}
 	
 	public Document directoryDeleteRequest (FileSystemEvent fileSystemEvent) {
-		Document info = new Document();
-		info.append("command", "DIRECTORY_DELETE_REQUEST");
-		info.append("pathName", fileSystemEvent.pathName);
-		return info;
+		Document returnInfo = new Document();
+		returnInfo.append("command", "DIRECTORY_DELETE_REQUEST");
+		returnInfo.append("pathName", fileSystemEvent.name);
+		return returnInfo;
 	}
 	
-	public Document directoryDeleteReponseSuccess (FileSystemEvent fileSystemEvent) {
-		Document info = new Document();
-		info.append("command", "DIRECTORY_DELETE_RESPONSE");
-		info.append("pathName", fileSystemEvent.pathName);
-		info.append("message", "directory deleted");
-		info.append("status", true);
-		return info;
+	public Document directoryDeleteReponseSuccess (Document info) {
+		Document returnInfo = new Document();
+		returnInfo.append("command", "DIRECTORY_DELETE_RESPONSE");
+		returnInfo.append("pathName", info.getString("pathName"));
+		returnInfo.append("message", "directory deleted");
+		returnInfo.append("status", true);
+		return returnInfo;
 	}
 	
-	public Document directoryDeleteReponseFail (FileSystemEvent fileSystemEvent) {
-		Document info = new Document();
-		info.append("command", "DIRECTORY_DELETE_RESPONSE");
-		info.append("pathName", fileSystemEvent.pathName);
-		info.append("message", "there was a problem deleting the directory");
-		info.append("status", false);
-		return info;
+	public Document directoryDeleteReponseFail (Document info) {
+		Document returnInfo = new Document();
+		returnInfo.append("command", "DIRECTORY_DELETE_RESPONSE");
+		returnInfo.append("pathName", info.getString("pathName"));
+		returnInfo.append("message", "there was a problem deleting the directory");
+		returnInfo.append("status", false);
+		return returnInfo;
 	}
 
 }
