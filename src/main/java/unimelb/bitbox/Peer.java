@@ -38,28 +38,21 @@ public class Peer {
 		String[] hostPost = Configuration.getConfigurationValue("peers").split(",");
 		HostPort peerAddress = new HostPort(hostPost[0]);
 
-
 		// create a thread for asClient
-		new Thread(() -> {
-			try {
-				asClient(peerAddress.host, peerAddress.port);
-			} catch (NumberFormatException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (NoSuchAlgorithmException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}).start() ;
-		System.out.println("already create a thread for asClient");
-		
-		//int localPort = Integer.parseInt(Configuration.getConfigurationValue("port"));
-		//new Thread(() -> asServer(localPort)).start();
+		/*
+		 * new Thread(() -> { try { asClient(peerAddress.host, peerAddress.port); }
+		 * catch (NumberFormatException e) { // TODO Auto-generated catch block
+		 * e.printStackTrace(); } catch (NoSuchAlgorithmException e) { // TODO
+		 * Auto-generated catch block e.printStackTrace(); } }).start() ;
+		 * System.out.println("already create a thread for asClient");
+		 */
+
+		int localPort = Integer.parseInt(Configuration.getConfigurationValue("port"));
+		new Thread(() -> asServer(localPort)).start();
 
 		// create a thread for asClient
 		// new Thread(() -> asClient(peerAddress.host, peerAddress.port)).start() ;
 		// System.out.println("already create a thread for asClient");
-
 
 	}
 
@@ -81,20 +74,20 @@ public class Peer {
 			while (true) {
 				if (clientIn.available() > 0) {
 					info = Document.parse(clientIn.readUTF());
-					//log.config(info.toJson());
+					// log.config(info.toJson());
 					System.out.println(info.toJson());
 
-					if(info.getString("command").equalsIgnoreCase("CONNECTION_REFUSED")){
-						//Parsing the peers and add them into an ArrayList
+					if (info.getString("command").equalsIgnoreCase("CONNECTION_REFUSED")) {
+						// Parsing the peers and add them into an ArrayList
 						ArrayList<Document> peers = new ArrayList<Document>();
-						peers.addAll((ArrayList<Document>)info.get("peers"));
+						peers.addAll((ArrayList<Document>) info.get("peers"));
 
-						for(int i=0; i<peers.size();i++){
+						for (int i = 0; i < peers.size(); i++) {
 							peersList.add(peers.get(i).get("host") + ":" + peers.get(i).get("port"));
 						}
 						getpeersList(peersList);
 
-					}else if(info.getString("command").equalsIgnoreCase("HANDSHAKE_RESPONSE")) {
+					} else if (info.getString("command").equalsIgnoreCase("HANDSHAKE_RESPONSE")) {
 						peersList.clear();
 						peersQueue.clear();
 						peersMap.clear();
@@ -112,8 +105,6 @@ public class Peer {
 		}
 
 	}
-
-
 
 	private static void asServer(int port) {
 		// As a server
@@ -152,16 +143,15 @@ public class Peer {
 			Document serverInfoDocument = new Document();
 
 			int userCount = peerlist.size();
-			int maximumIncommingConnections = Integer.parseInt(Configuration.getConfigurationValue("maximumIncommingConnections"));
-			if(userCount>=maximumIncommingConnections){
+			int maximumIncommingConnections = Integer
+					.parseInt(Configuration.getConfigurationValue("maximumIncommingConnections"));
+			if (userCount >= maximumIncommingConnections) {
 				serverInfoDocument = new SystemEventMessage().connectionRefused(peerlist);
 
 				serverOut.writeUTF(serverInfoDocument.toJson());
-			}else {
+			} else {
 				String info = serverIn.readUTF();
 				serverInfoDocument = Document.parse(info);
-
-
 
 				if (!isJSON2(info)) {
 					serverInfoDocument = new SystemEventMessage().invalidProtocol();
@@ -176,9 +166,8 @@ public class Peer {
 							if (peerlist.get(i).toJson().equals(receive.toJson())) {
 								serverInfoDocument = new SystemEventMessage().invalidProtocol();
 							}
-							//System.out.println(peerlist.get(i).toJson());
+							// System.out.println(peerlist.get(i).toJson());
 						}
-
 
 						// response server address and port to client.
 						serverInfoDocument = new SystemEventMessage().HandShakeResponse();
@@ -187,19 +176,25 @@ public class Peer {
 						new ServerMain(serverOut);
 						ArrayList<FileSystemEvent> pathevents = ServerMain.fileSystemManager.generateSyncEvents();
 						for (FileSystemEvent fileSystemEvent : pathevents) {
-							Thread thread = new Thread();
-							thread.start();
-							new ServerMain(serverOut).processFileSystemEvent(fileSystemEvent);
-							while(serverIn.available() > 0) {						
-								
-								serverInfoDocument = Document.parse(serverIn.readUTF());
-								System.out.println("Command Received: " + serverInfoDocument.toJson());
-								new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut);					
+							try {
+								Thread thread = new Thread();
+								thread.start();
+								new ServerMain(serverOut).processFileSystemEvent(fileSystemEvent);
+								while (true) {									
+									if (serverIn.available() > 0) {
+										serverInfoDocument = Document.parse(serverIn.readUTF());
+										System.out.println("Command Received: " + serverInfoDocument.toJson());
+										new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut);
+									}
+								}
+							} catch (Exception e) {
+								continue;
+							}						
+
 						}
-						
 
-						while (true) { 
-
+						while (true) {
+							
 							if (serverIn.available() > 0) {
 								serverInfoDocument = Document.parse(serverIn.readUTF());
 								System.out.println("Command Received: " + serverInfoDocument.toJson());
@@ -208,67 +203,56 @@ public class Peer {
 
 						}
 
-
 					}
 				}
 
-			/*// start to synchronous
-			 * 
-
-			int timeInterval = Integer.parseInt(Configuration.getConfigurationValue("syncInterval"));
-			new Thread(() -> {
-				while (true) {
-					try {
-						Thread.sleep(timeInterval * 100); // set time to 60s
-						pathevents = new ServerMain(serverOut).fileSystemManager.generateSyncEvents();
-						for (FileSystemEvent fileSystemEvent : pathevents) {
-							new Thread(() -> {
-								try {
-									new ServerMain().processFileSystemEvent(fileSystemEvent);
-								} catch (NumberFormatException e) {
-									// TODO Auto-generated catch block
-									e.printStackTrace();
-								} catch (NoSuchAlgorithmException e) {
-									// TODO Auto-generated catch block
-									e.printStackTrace();
-								} catch (IOException e) {
-									// TODO Auto-generated catch block
-									e.printStackTrace();
-								}
-							}).start();
-							;
-						}
-
-					} catch (InterruptedException | NumberFormatException | NoSuchAlgorithmException | IOException e) {
-						e.printStackTrace();
-					}
-
-				}
-
-			}).start();
-
-			}).start();*/
+				/*
+				 * // start to synchronous
+				 * 
+				 * 
+				 * int timeInterval =
+				 * Integer.parseInt(Configuration.getConfigurationValue("syncInterval")); new
+				 * Thread(() -> { while (true) { try { Thread.sleep(timeInterval * 100); // set
+				 * time to 60s pathevents = new
+				 * ServerMain(serverOut).fileSystemManager.generateSyncEvents(); for
+				 * (FileSystemEvent fileSystemEvent : pathevents) { new Thread(() -> { try { new
+				 * ServerMain().processFileSystemEvent(fileSystemEvent); } catch
+				 * (NumberFormatException e) { // TODO Auto-generated catch block
+				 * e.printStackTrace(); } catch (NoSuchAlgorithmException e) { // TODO
+				 * Auto-generated catch block e.printStackTrace(); } catch (IOException e) { //
+				 * TODO Auto-generated catch block e.printStackTrace(); } }).start(); ; }
+				 * 
+				 * } catch (InterruptedException | NumberFormatException |
+				 * NoSuchAlgorithmException | IOException e) { e.printStackTrace(); }
+				 * 
+				 * }
+				 * 
+				 * }).start();
+				 * 
+				 * }).start();
+				 */
 
 			}
 
-			}}
+		}
 	}
-	public static boolean isJSON2(String string){
+
+	public static boolean isJSON2(String string) {
 		boolean result = false;
 		try {
 			Object object = JSONObject.parse(string);
 			result = true;
 
-		}catch (Exception e){
+		} catch (Exception e) {
 			result = false;
 		}
 		return result;
 	}
 
-
 	private static void getpeersList(ArrayList<String> peers) {
 		searchflag++;
-		if (searchflag == searchmax) return;
+		if (searchflag == searchmax)
+			return;
 		String[] hostport;
 		String host;
 		String portstring;
@@ -298,8 +282,7 @@ public class Peer {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-		}
-		else {
+		} else {
 			return;
 		}
 	}

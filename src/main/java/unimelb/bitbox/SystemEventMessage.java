@@ -91,30 +91,38 @@ public class SystemEventMessage {
 	}
 	
 	public Document fileBytesRequest (Document info) {
-		Document returnInfo = new Document();
-		Document fileDescriptorDoc = new Document();
-		fileDescriptorDoc = (Document) info.get("fileDescriptor");
-		returnInfo.append("command", "FILE_BYTES_REQUEST");
-		returnInfo.append("fileDescriptor", fileDescriptorDoc);
-		returnInfo.append("pathName", info.getString("pathName"));
-		returnInfo.append("position", 0);
-		returnInfo.append("length", Configuration.getConfigurationValue("blockSize"));
-		return returnInfo;
+		if(!info.containsKey("position")) {
+			Document fileDescriptorDoc = new Document();
+			fileDescriptorDoc = (Document) info.get("fileDescriptor");
+			info.append("command", "FILE_BYTES_REQUEST");
+			info.append("fileDescriptor", fileDescriptorDoc);
+			info.append("pathName", info.getString("pathName"));
+			info.append("position", 0);
+			info.append("length", fileDescriptorDoc.getLong("fileSize"));
+			return info;
+		}else {
+			Document fileDescriptorDoc = new Document();
+			fileDescriptorDoc = (Document) info.get("fileDescriptor");
+			info.append("command", "FILE_BYTES_REQUEST");
+			info.append("fileDescriptor", fileDescriptorDoc);
+			info.append("pathName", info.getString("pathName"));
+			info.append("length", fileDescriptorDoc.getLong("fileSize"));
+			return info;
+		}
+
 	}
 	
 	public Document fileBytesResponse (Document info,String base64EncodeInfo) {
-		Document returnInfo = new Document();
 		Document fileDescriptorDoc = new Document();
 		fileDescriptorDoc = (Document) info.get("fileDescriptor");
-		returnInfo.append("command", "FILE_BYTES_RESPONSE");
-		returnInfo.append("fileDescriptor", fileDescriptorDoc);
-		returnInfo.append("pathName", info.getString("pathName"));
-		returnInfo.append("position", 0);
-		returnInfo.append("length", Configuration.getConfigurationValue("blockSize"));
-		returnInfo.append("content", base64EncodeInfo);
-		returnInfo.append("message", "successful read");
-		returnInfo.append("status", true);
-		return returnInfo;
+		info.append("command", "FILE_BYTES_RESPONSE");
+		info.append("fileDescriptor", fileDescriptorDoc);
+		info.append("pathName", info.getString("pathName"));
+		info.append("length", fileDescriptorDoc.getLong("fileSize"));
+		info.append("content", base64EncodeInfo);
+		info.append("message", "successful read");
+		info.append("status", true);
+		return info;
 	}
 	
 	public Document fileDeleteRequest (Document fileDescriptorDoc, String fileName) {

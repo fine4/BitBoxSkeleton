@@ -29,13 +29,6 @@ public class ServerMain implements FileSystemObserver {
 
 	int bufferSize = Integer.parseInt(Configuration.getConfigurationValue("blockSize"));
 	byte[] buffer = new byte[bufferSize];
-	// public Document responseInfo = new Document();
-
-	public ServerMain() throws NumberFormatException, IOException, NoSuchAlgorithmException {
-		// fileSystemManager = new
-		// FileSystemManager(Configuration.getConfigurationValue("path"), this);
-
-	}
 
 	public ServerMain(DataOutputStream serverOut) throws NumberFormatException, IOException, NoSuchAlgorithmException {
 		if (fileSystemManager == null)
@@ -52,6 +45,7 @@ public class ServerMain implements FileSystemObserver {
 					fileSystemEvent.name);
 			try {
 				serverOut.writeUTF(responseInfo.toJson());
+				serverOut.flush();
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -112,8 +106,7 @@ public class ServerMain implements FileSystemObserver {
 			responseDocument = FileCreateResponse(info);
 			serverOut.writeUTF(responseDocument.toJson());
 			serverOut.flush();
-			
-			if(responseDocument.getBoolean("status")) {
+			if (responseDocument.getBoolean("status")) {
 				responseDocument = new SystemEventMessage().fileBytesRequest(info);
 				serverOut.writeUTF(responseDocument.toJson());
 				serverOut.flush();
@@ -229,83 +222,82 @@ public class ServerMain implements FileSystemObserver {
 		return tempInfo;
 	}
 
-
-	public void SendFileBuffer (Document info,DataOutputStream serverOut) throws NumberFormatException, NoSuchAlgorithmException, IOException {
-		//get information needed to be sent.
+	public void SendFileBuffer(Document info, DataOutputStream serverOut)
+			throws NumberFormatException, NoSuchAlgorithmException, IOException {
+		// get information needed to be sent.
 		Document fileDescriptorDoc = (Document) info.get("fileDescriptor");
 		String fileMd5 = fileDescriptorDoc.getString("md5");
 		long position = info.getLong("position");
+		System.out.println(position);
 		long length = fileDescriptorDoc.getLong("fileSize");
 		@SuppressWarnings("deprecation")
 		int fileSize = new Long(fileDescriptorDoc.getLong("fileSize")).intValue();
 		ByteBuffer revFile = ByteBuffer.allocate(fileSize);
 		revFile = fileSystemManager.readFile(fileMd5, position, length);
-		
-		revFile.rewind();
-		if(revFile.capacity() < bufferSize) {			
+		@SuppressWarnings("deprecation")
+		int positionInt = new Long(position).intValue();
+		positionInt += bufferSize;
+
+		@SuppressWarnings("deprecation")
+		long lastestPosition = new Long((long) positionInt);
+		if (position == 0) {
+			revFile.rewind();
+		}
+		if (revFile.capacity() < bufferSize) {
 			responseInfo = convertBufferToBase64StringInfo(revFile, buffer, info);
 			serverOut.writeUTF(responseInfo.toJson());
 			serverOut.flush();
-		}else {
+		} else {
 			while (revFile.hasRemaining()) {
-				int remainLength = revFile.remaining();
-				int bufferLen = buffer.length;
-				System.out.println(remainLength);
-				System.out.println(bufferLen);
-				if(revFile.remaining() < bufferSize) {
-					System.out.println(bufferSize);
-					System.out.println(revFile.remaining());
+				if (revFile.remaining() < bufferSize) {
 					byte[] lastReaminBuffer = new byte[revFile.remaining()];
 					revFile.get(lastReaminBuffer, 0, revFile.remaining());
 					lastReaminBuffer = Base64.encodeBase64(lastReaminBuffer);
 					String base64EncodeInfo = new String(lastReaminBuffer);
 					info.append("length", revFile.remaining());
+					info.append("position", lastestPosition);
 					responseInfo = new SystemEventMessage().fileBytesResponse(info, base64EncodeInfo);
 					serverOut.writeUTF(responseInfo.toJson());
 					serverOut.flush();
-				}else {
+				} else {
 					revFile.get(buffer, 0, bufferSize);
 					buffer = Base64.encodeBase64(buffer);
 					String base64EncodeInfo = new String(buffer);
+					info.append("length", revFile.remaining());
+					info.append("position", lastestPosition);
 					responseInfo = new SystemEventMessage().fileBytesResponse(info, base64EncodeInfo);
 					serverOut.writeUTF(responseInfo.toJson());
 					serverOut.flush();
 				}
-				
 
-			}System.out.println("write completed");
-			
+			}
+			System.out.println("write completed");
+
 		}
-					
+
 	}
+
 	public void ReceveiedFileBuffer(Document info) throws IOException, NumberFormatException, NoSuchAlgorithmException {
 		Document fileDescriptor = new Document();
 		fileDescriptor = (Document) info.get("fileDescriptor");
-		long fileSize = fileDescriptor.getLong("fileSize");
-		@SuppressWarnings("deprecation")
-		int fileSizeInt = new Long(fileSize).intValue();
-		ByteBuffer tempStoreBuffer = ByteBuffer.allocate(fileSizeInt);
 		String content = info.getString("content");
 		byte[] buffer = Base64.decodeBase64(content.getBytes());
 		ByteBuffer infoBytebuffer = ByteBuffer.wrap(buffer);
 		infoBytebuffer.rewind();
 		long position = info.getLong("position");
-		int bufferPosition = 0;
 		boolean checkWriteComplete = fileSystemManager.checkWriteComplete(info.getString("pathName"));
 		if (!checkWriteComplete) {
 			fileSystemManager.writeFile(info.getString("pathName"), infoBytebuffer, position);
-			checkWriteComplete = fileSystemManager.checkWriteComplete(info.getString("pathName"));
-			if (!checkWriteComplete) {
-					tempStoreBuffer.put(buffer, bufferPosition, buffer.length);
-					responseDocument = new SystemEventMessage().fileBytesRequest(info);
-					serverOut.writeUTF(responseDocument.toJson());
-					serverOut.flush();
-					bufferPosition = buffer.length + 1;
-				} /*else {
-					responseDocument = new SystemEventMessage().fileCreateResponseSuccess(info);
-					serverOut.writeUTF(responseDocument.toJson());
-					serverOut.flush();
-				}*/
+			if (!fileSystemManager.checkWriteComplete(info.getString("pathName"))) {
+				info.append("position", infoBytebuffer.position());
+				responseDocument = new SystemEventMessage().fileBytesRequest(info);
+				serverOut.writeUTF(responseDocument.toJson());
+				serverOut.flush();
+			} else {
+				responseDocument = new SystemEventMessage().fileCreateResponseSuccess(info);
+				serverOut.writeUTF(responseDocument.toJson());
+				serverOut.flush();
+			}
 		}
 
 	}
