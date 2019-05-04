@@ -39,20 +39,21 @@ public class Peer {
 		HostPort peerAddress = new HostPort(hostPost[0]);
 
 		// create a thread for asClient
-		/*
-		 * new Thread(() -> { try { asClient(peerAddress.host, peerAddress.port); }
-		 * catch (NumberFormatException e) { // TODO Auto-generated catch block
-		 * e.printStackTrace(); } catch (NoSuchAlgorithmException e) { // TODO
-		 * Auto-generated catch block e.printStackTrace(); } }).start() ;
-		 * System.out.println("already create a thread for asClient");
-		 */
+
+		/*new Thread(() -> {
+			try {
+				asClient(peerAddress.host, peerAddress.port);
+			} catch (NumberFormatException e) {
+				e.printStackTrace();
+			} catch (NoSuchAlgorithmException e) {
+				e.printStackTrace();
+			}
+		}).start();
+		System.out.println("already create a thread for asClient");*/
 
 		int localPort = Integer.parseInt(Configuration.getConfigurationValue("port"));
 		new Thread(() -> asServer(localPort)).start();
 
-		// create a thread for asClient
-		// new Thread(() -> asClient(peerAddress.host, peerAddress.port)).start() ;
-		// System.out.println("already create a thread for asClient");
 
 	}
 
@@ -176,20 +177,14 @@ public class Peer {
 						new ServerMain(serverOut);
 						ArrayList<FileSystemEvent> pathevents = ServerMain.fileSystemManager.generateSyncEvents();
 						for (FileSystemEvent fileSystemEvent : pathevents) {
-							try {
+							//try {
 								Thread thread = new Thread();
 								thread.start();
 								new ServerMain(serverOut).processFileSystemEvent(fileSystemEvent);
-								while (true) {									
-									if (serverIn.available() > 0) {
-										serverInfoDocument = Document.parse(serverIn.readUTF());
-										System.out.println("Command Received: " + serverInfoDocument.toJson());
-										new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut);
-									}
-								}
-							} catch (Exception e) {
-								continue;
-							}						
+
+							//} catch (Exception e) {
+							//	continue;
+							//}						
 
 						}
 
@@ -205,32 +200,6 @@ public class Peer {
 
 					}
 				}
-
-				/*
-				 * // start to synchronous
-				 * 
-				 * 
-				 * int timeInterval =
-				 * Integer.parseInt(Configuration.getConfigurationValue("syncInterval")); new
-				 * Thread(() -> { while (true) { try { Thread.sleep(timeInterval * 100); // set
-				 * time to 60s pathevents = new
-				 * ServerMain(serverOut).fileSystemManager.generateSyncEvents(); for
-				 * (FileSystemEvent fileSystemEvent : pathevents) { new Thread(() -> { try { new
-				 * ServerMain().processFileSystemEvent(fileSystemEvent); } catch
-				 * (NumberFormatException e) { // TODO Auto-generated catch block
-				 * e.printStackTrace(); } catch (NoSuchAlgorithmException e) { // TODO
-				 * Auto-generated catch block e.printStackTrace(); } catch (IOException e) { //
-				 * TODO Auto-generated catch block e.printStackTrace(); } }).start(); ; }
-				 * 
-				 * } catch (InterruptedException | NumberFormatException |
-				 * NoSuchAlgorithmException | IOException e) { e.printStackTrace(); }
-				 * 
-				 * }
-				 * 
-				 * }).start();
-				 * 
-				 * }).start();
-				 */
 
 			}
 
