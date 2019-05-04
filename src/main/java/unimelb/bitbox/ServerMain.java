@@ -145,25 +145,23 @@ public class ServerMain implements FileSystemObserver {
 							info.getString("pathName"));
 					serverOut.writeUTF(responseDocument.toJson());
 					serverOut.flush();
+					if(responseDocument.getBoolean("status")) {
+						responseDocument = new SystemEventMessage().fileBytesRequest(info);
+						serverOut.writeUTF(responseDocument.toJson());
+						serverOut.flush();
+					}
+					
 				}
 			}
 		}
 			break;
 
-		case "FILE_MODIFY_RESPONSE": {
-			if (info.getBoolean("status")) {
-				responseDocument = new SystemEventMessage().fileBytesRequest(info);
-				serverOut.writeUTF(responseDocument.toJson());
-				serverOut.flush();
-			}
-		}
-			break;
 		case "FILE_DELETE_REQUEST": {
 			Document fileDescriptorDoc = (Document) info.get("fileDescriptor");
 			String fileMd5 = fileDescriptorDoc.getString("md5");
 			long fileLastModified = fileDescriptorDoc.getLong("lastModified");
 			fileSystemManager.deleteFile(info.getString("pathName"), fileLastModified, fileMd5);
-			responseDocument = new SystemEventMessage().directoryDeleteReponseSuccess(info);
+			responseDocument = new SystemEventMessage().fileDeleteRequest(fileDescriptorDoc,info.getString("pathName"));
 			serverOut.writeUTF(responseDocument.toJson());
 		}
 			break;
