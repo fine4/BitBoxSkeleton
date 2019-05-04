@@ -301,17 +301,11 @@ public class ServerMain implements FileSystemObserver {
 					serverOut.writeUTF(responseDocument.toJson());
 					serverOut.flush();
 					bufferPosition = buffer.length + 1;
-				} else {
+				} /*else {
 					responseDocument = new SystemEventMessage().fileCreateResponseSuccess(info);
 					serverOut.writeUTF(responseDocument.toJson());
 					serverOut.flush();
-				}
-			
-
-		} else {
-			responseDocument = new SystemEventMessage().fileCreateResponseRefuseFail(info);
-			serverOut.writeUTF(responseDocument.toJson());
-			serverOut.flush();
+				}*/
 		}
 
 	}

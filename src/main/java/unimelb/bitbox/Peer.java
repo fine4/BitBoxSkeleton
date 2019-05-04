@@ -40,7 +40,7 @@ public class Peer {
 
 
 		// create a thread for asClient
-		/*new Thread(() -> {
+		new Thread(() -> {
 			try {
 				asClient(peerAddress.host, peerAddress.port);
 			} catch (NumberFormatException e) {
@@ -51,10 +51,10 @@ public class Peer {
 				e.printStackTrace();
 			}
 		}).start() ;
-		System.out.println("already create a thread for asClient");*/
+		System.out.println("already create a thread for asClient");
 		
-		int localPort = Integer.parseInt(Configuration.getConfigurationValue("port"));
-		new Thread(() -> asServer(localPort)).start();
+		//int localPort = Integer.parseInt(Configuration.getConfigurationValue("port"));
+		//new Thread(() -> asServer(localPort)).start();
 
 		// create a thread for asClient
 		// new Thread(() -> asClient(peerAddress.host, peerAddress.port)).start() ;
@@ -81,6 +81,7 @@ public class Peer {
 			while (true) {
 				if (clientIn.available() > 0) {
 					info = Document.parse(clientIn.readUTF());
+					//log.config(info.toJson());
 					System.out.println(info.toJson());
 
 					if(info.getString("command").equalsIgnoreCase("CONNECTION_REFUSED")){
@@ -189,6 +190,11 @@ public class Peer {
 							Thread thread = new Thread();
 							thread.start();
 							new ServerMain(serverOut).processFileSystemEvent(fileSystemEvent);
+							while(serverIn.available() > 0) {						
+								
+								serverInfoDocument = Document.parse(serverIn.readUTF());
+								System.out.println("Command Received: " + serverInfoDocument.toJson());
+								new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut);					
 						}
 						
 
@@ -245,7 +251,7 @@ public class Peer {
 
 			}
 
-		}
+			}}
 	}
 	public static boolean isJSON2(String string){
 		boolean result = false;
@@ -259,7 +265,7 @@ public class Peer {
 		return result;
 	}
 
-	//汪
+
 	private static void getpeersList(ArrayList<String> peers) {
 		searchflag++;
 		if (searchflag == searchmax) return;
