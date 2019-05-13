@@ -15,12 +15,8 @@
 	</classpathentry>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.8">
 		<attributes>
-			<attribute name="module" value="true"/>
 			<attribute name="maven.pomderived" value="true"/>
 		</attributes>
-		<accessrules>
-			<accessrule kind="accessible" pattern="**"/>
-		</accessrules>
 	</classpathentry>
 	<classpathentry kind="lib" path="/Users/shizhi/Desktop/BitBox-Fine4/lib/commons-codec-1.7.jar">
 		<attributes>

@@ -39,18 +39,20 @@ public class Peer {
 		HostPort peerAddress = new HostPort(hostPost[0]);
 
 		// create a thread for asClient
-
-		/*new Thread(() -> {
+		new Thread(() -> {
 			try {
 				asClient(peerAddress.host, peerAddress.port);
 			} catch (NumberFormatException e) {
+
 				e.printStackTrace();
 			} catch (NoSuchAlgorithmException e) {
+				// TODOAuto-generated catch block
 				e.printStackTrace();
 			}
 		}).start();
-		System.out.println("already create a thread for asClient");*/
+		System.out.println("already create a thread for asClient");
 
+		// create a thread for asServer
 		int localPort = Integer.parseInt(Configuration.getConfigurationValue("port"));
 		new Thread(() -> asServer(localPort)).start();
 
@@ -75,11 +77,11 @@ public class Peer {
 			while (true) {
 				if (clientIn.available() > 0) {
 					info = Document.parse(clientIn.readUTF());
-					// log.config(info.toJson());
 					System.out.println(info.toJson());
 
 					if (info.getString("command").equalsIgnoreCase("CONNECTION_REFUSED")) {
 						// Parsing the peers and add them into an ArrayList
+						peersMap.put(ipAddress + ":" + port, Math.random());
 						ArrayList<Document> peers = new ArrayList<Document>();
 						peers.addAll((ArrayList<Document>) info.get("peers"));
 
@@ -94,9 +96,7 @@ public class Peer {
 						peersMap.clear();
 						searchflag = 0;
 					}
-
 					new ServerMain(clientOut).HandleFileSystemEvent(info, clientOut);
-
 				}
 			}
 
@@ -104,7 +104,6 @@ public class Peer {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-
 	}
 
 	private static void asServer(int port) {
@@ -112,13 +111,11 @@ public class Peer {
 		ServerSocketFactory socketFactory = ServerSocketFactory.getDefault();
 		try (ServerSocket serverSocket = socketFactory.createServerSocket(port)) {
 			System.out.println("Waiting for the connection");
-
 			while (true) {
 				Socket listenClient = serverSocket.accept();
 				// create a new thread for each peer
 				new Thread(() -> {
 					try {
-
 						serverSocketConnection(listenClient);
 					} catch (NoSuchAlgorithmException e) {
 						// TODO Auto-generated catch block
@@ -127,7 +124,6 @@ public class Peer {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
-
 				}).start();
 			}
 		} catch (IOException e) {
@@ -138,28 +134,25 @@ public class Peer {
 	private static void serverSocketConnection(Socket client) throws IOException, NoSuchAlgorithmException {
 		ArrayList<Document> peerlist = new ArrayList<>();
 		try (Socket clientSocket = client) {
-
+			
 			DataInputStream serverIn = new DataInputStream(clientSocket.getInputStream());
 			DataOutputStream serverOut = new DataOutputStream(clientSocket.getOutputStream());
 			Document serverInfoDocument = new Document();
-
 			int userCount = peerlist.size();
 			int maximumIncommingConnections = Integer
 					.parseInt(Configuration.getConfigurationValue("maximumIncommingConnections"));
+			
 			if (userCount >= maximumIncommingConnections) {
 				serverInfoDocument = new SystemEventMessage().connectionRefused(peerlist);
-
 				serverOut.writeUTF(serverInfoDocument.toJson());
 			} else {
 				String info = serverIn.readUTF();
 				serverInfoDocument = Document.parse(info);
-
 				if (!isJSON2(info)) {
 					serverInfoDocument = new SystemEventMessage().invalidProtocol();
 					serverOut.writeUTF(serverInfoDocument.toJson());
 				} else {
-					System.out.println("Command Received : " + serverInfoDocument.toJson());
-
+					System.out.println(serverInfoDocument.toJson());
 					if (serverInfoDocument.get("hostPort") != null) {
 						Document receive = new Document();
 						receive = (Document) serverInfoDocument.get("hostPort");
@@ -167,7 +160,6 @@ public class Peer {
 							if (peerlist.get(i).toJson().equals(receive.toJson())) {
 								serverInfoDocument = new SystemEventMessage().invalidProtocol();
 							}
-							// System.out.println(peerlist.get(i).toJson());
 						}
 
 						// response server address and port to client.
@@ -177,32 +169,31 @@ public class Peer {
 						new ServerMain(serverOut);
 						ArrayList<FileSystemEvent> pathevents = ServerMain.fileSystemManager.generateSyncEvents();
 						for (FileSystemEvent fileSystemEvent : pathevents) {
-							//try {
+							try {
 								Thread thread = new Thread();
 								thread.start();
 								new ServerMain(serverOut).processFileSystemEvent(fileSystemEvent);
-
-							//} catch (Exception e) {
-							//	continue;
-							//}						
-
+								while (true) {									
+									if (serverIn.available() > 0) {
+										serverInfoDocument = Document.parse(serverIn.readUTF());
+										System.out.println(serverInfoDocument.toJson());
+										new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut);
+									}
+								}
+							} catch (Exception e) {
+								continue;
+							}						
 						}
-
 						while (true) {
-							
 							if (serverIn.available() > 0) {
 								serverInfoDocument = Document.parse(serverIn.readUTF());
-								System.out.println("Command Received: " + serverInfoDocument.toJson());
+								System.out.println(serverInfoDocument.toJson());
 								new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut);
 							}
-
 						}
-
 					}
 				}
-
 			}
-
 		}
 	}
 
@@ -211,7 +202,6 @@ public class Peer {
 		try {
 			Object object = JSONObject.parse(string);
 			result = true;
-
 		} catch (Exception e) {
 			result = false;
 		}
@@ -220,13 +210,17 @@ public class Peer {
 
 	private static void getpeersList(ArrayList<String> peers) {
 		searchflag++;
-		if (searchflag == searchmax)
+		if (searchflag == searchmax) {
+			peersList.clear();
+			peersQueue.clear();
+			peersMap.clear();
+			searchflag = 0;
 			return;
+		}
 		String[] hostport;
 		String host;
 		String portstring;
 		int port;
-
 		for (String peer : peers) {
 			System.out.println(4);
 			if (peersMap == null || (!peersMap.containsKey(peer) && !peersMap.containsValue(peer))) {
@@ -234,14 +228,12 @@ public class Peer {
 				peersQueue.add(peer);
 			}
 		}
-
 		if (peersQueue != null) {
 			hostport = peersQueue.element().split(":");
 			host = hostport[0];
 			portstring = hostport[1];
 			port = Integer.parseInt(portstring);
 			peersQueue.remove();
-
 			try {
 				asClient(host, port);
 			} catch (NumberFormatException e) {
@@ -252,6 +244,10 @@ public class Peer {
 				e.printStackTrace();
 			}
 		} else {
+			peersList.clear();
+			peersQueue.clear();
+			peersMap.clear();
+			searchflag = 0;
 			return;
 		}
 	}

@@ -248,21 +248,20 @@ public class ServerMain implements FileSystemObserver {
 			while (revFile.hasRemaining()) {
 				System.out.println(revFile.position());
 				if (revFile.remaining() < bufferSize) {
-					
+					String base64EncodeInfo = new String();
 					byte[] lastReaminBuffer = new byte[revFile.remaining()];
 					revFile.get(lastReaminBuffer, 0, revFile.remaining());
 					lastReaminBuffer = Base64.encodeBase64(lastReaminBuffer);
-					String base64EncodeInfo = new String(lastReaminBuffer);
+					base64EncodeInfo = new String(lastReaminBuffer);
 					info.append("length", revFile.remaining());
 					info.append("position", revFile.position());
 					responseInfo = new SystemEventMessage().fileBytesResponse(info, base64EncodeInfo);
 					serverOut.writeUTF(responseInfo.toJson());
 					serverOut.flush();
 				} else {
-					String base64EncodeInfo = "";
+					String base64EncodeInfo = new String();
 					revFile.get(buffer, 0, bufferSize);
 					buffer = Base64.encodeBase64(buffer);
-					System.out.println(base64EncodeInfo);
 					info.append("length", revFile.remaining());
 					info.append("position", revFile.position());
 					responseInfo = new SystemEventMessage().fileBytesResponse(info, base64EncodeInfo);
