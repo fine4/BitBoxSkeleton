@@ -1,6 +1,6 @@
 package unimelb.bitbox;
 
-import java.io.BufferedWriter;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
@@ -23,14 +23,14 @@ public class ServerMain implements FileSystemObserver {
 	private Document responseInfo;
 	protected static FileSystemManager fileSystemManager;
 	protected FileDescriptor fileDescriptor;
-	private BufferedWriter serverOut;
+	private DataOutputStream serverOut;
 	public Document responseDocument = new Document();
 	Base64 encoder = new Base64();
 
 	int bufferSize = Integer.parseInt(Configuration.getConfigurationValue("blockSize"));
 	byte[] buffer = new byte[bufferSize];
 
-	public ServerMain(BufferedWriter serverOut) throws NumberFormatException, IOException, NoSuchAlgorithmException {
+	public ServerMain(DataOutputStream serverOut) throws NumberFormatException, IOException, NoSuchAlgorithmException {
 		if (fileSystemManager == null)
 			fileSystemManager = new FileSystemManager(Configuration.getConfigurationValue("path"), this);
 		this.serverOut = serverOut;
@@ -44,7 +44,7 @@ public class ServerMain implements FileSystemObserver {
 			responseInfo = new SystemEventMessage().fileCreateRequest(fileSystemEvent.fileDescriptor.toDoc(),
 					fileSystemEvent.name);
 			try {
-				serverOut.write(responseInfo.toJson());
+				serverOut.writeUTF(responseInfo.toJson());
 				serverOut.flush();
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
@@ -56,7 +56,7 @@ public class ServerMain implements FileSystemObserver {
 			responseInfo = new SystemEventMessage().fileDeleteRequest(fileSystemEvent.fileDescriptor.toDoc(),
 					fileSystemEvent.name);
 			try {
-				serverOut.write(responseInfo.toJson());
+				serverOut.writeUTF(responseInfo.toJson());
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -67,7 +67,7 @@ public class ServerMain implements FileSystemObserver {
 			responseInfo = new SystemEventMessage().fileModifyRequest(fileSystemEvent.fileDescriptor.toDoc(),
 					fileSystemEvent.name);
 			try {
-				serverOut.write(responseInfo.toJson());
+				serverOut.writeUTF(responseInfo.toJson());
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -77,7 +77,7 @@ public class ServerMain implements FileSystemObserver {
 		if (fileSystemEvent.event == EVENT.DIRECTORY_CREATE) {
 			responseInfo = new SystemEventMessage().directoryCreateRequest(fileSystemEvent);
 			try {
-				serverOut.write(responseInfo.toJson());
+				serverOut.writeUTF(responseInfo.toJson());
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -87,7 +87,7 @@ public class ServerMain implements FileSystemObserver {
 		if (fileSystemEvent.event == EVENT.DIRECTORY_DELETE) {
 			responseInfo = new SystemEventMessage().directoryDeleteRequest(fileSystemEvent);
 			try {
-				serverOut.write(responseInfo.toJson());
+				serverOut.writeUTF(responseInfo.toJson());
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -97,18 +97,18 @@ public class ServerMain implements FileSystemObserver {
 
 	}
 
-	public void HandleFileSystemEvent(Document info, BufferedWriter serverOut)
+	public void HandleFileSystemEvent(Document info, DataOutputStream serverOut)
 			throws NoSuchAlgorithmException, IOException {
 
 		String value = info.getString("command");
 		switch (value) {
 		case "FILE_CREATE_REQUEST": {
 			responseDocument = FileCreateResponse(info);
-			serverOut.write(responseDocument.toJson());
+			serverOut.writeUTF(responseDocument.toJson());
 			serverOut.flush();
 			if (responseDocument.getBoolean("status")) {
 				responseDocument = new SystemEventMessage().fileBytesRequest(info);
-				serverOut.write(responseDocument.toJson());
+				serverOut.writeUTF(responseDocument.toJson());
 				serverOut.flush();
 			}
 		}
@@ -132,22 +132,22 @@ public class ServerMain implements FileSystemObserver {
 			if (!fileSystemManager.isSafePathName(info.getString("pathName"))) {
 				responseDocument = new SystemEventMessage().fileModifyReponseUnsafePathname(fileDescriptorDoc,
 						info.getString("pathName"));
-				serverOut.write(responseDocument.toJson());
+				serverOut.writeUTF(responseDocument.toJson());
 				serverOut.flush();
 			} else {
 				if (!fileSystemManager.modifyFileLoader(info.getString("pathName"), fileMd5, fileLastModified)) {
 					responseDocument = new SystemEventMessage().fileModifyReponseFail(fileDescriptorDoc,
 							info.getString("pathName"));
-					serverOut.write(responseDocument.toJson());
+					serverOut.writeUTF(responseDocument.toJson());
 					serverOut.flush();
 				} else {
 					responseDocument = new SystemEventMessage().fileModifyReponseSuccess(fileDescriptorDoc,
 							info.getString("pathName"));
-					serverOut.write(responseDocument.toJson());
+					serverOut.writeUTF(responseDocument.toJson());
 					serverOut.flush();
 					if(responseDocument.getBoolean("status")) {
 						responseDocument = new SystemEventMessage().fileBytesRequest(info);
-						serverOut.write(responseDocument.toJson());
+						serverOut.writeUTF(responseDocument.toJson());
 						serverOut.flush();
 					}
 					
@@ -162,20 +162,18 @@ public class ServerMain implements FileSystemObserver {
 			long fileLastModified = fileDescriptorDoc.getLong("lastModified");
 			fileSystemManager.deleteFile(info.getString("pathName"), fileLastModified, fileMd5);
 			responseDocument = new SystemEventMessage().fileDeleteRequest(fileDescriptorDoc,info.getString("pathName"));
-			serverOut.write(responseDocument.toJson());
+			serverOut.writeUTF(responseDocument.toJson());
 		}
 			break;
-		case "DIRECTORY_CREATE_REQUEST": { // need to modify
+		case "DIRECTORY_CREATE_REQUEST": {
 			fileSystemManager.makeDirectory(info.getString("pathName"));
 			responseDocument = new SystemEventMessage().directoryCreateReponseSuccess(info);
-			serverOut.write(responseDocument.toJson());
 
 		}
 			break;
-		case "DIRECTORY_DELETE_REQUEST": {// need to modify
-			fileSystemManager.deleteDirectory(info.getString("pathName"));	
-			responseDocument = new SystemEventMessage().directoryCreateReponseSuccess(info);
-			serverOut.write(responseDocument.toJson());
+		case "DIRECTORY_DELETE_REQUEST": {
+			boolean result = fileSystemManager.deleteDirectory(info.getString("pathName"));
+			serverOut.writeBoolean(result);
 		}
 			break;
 		}
@@ -222,7 +220,7 @@ public class ServerMain implements FileSystemObserver {
 		return tempInfo;
 	}
 
-	public void SendFileBuffer(Document info, BufferedWriter serverOut)
+	public void SendFileBuffer(Document info, DataOutputStream serverOut)
 			throws NumberFormatException, NoSuchAlgorithmException, IOException {
 		// get information needed to be sent.		
 		Document fileDescriptorDoc = (Document) info.get("fileDescriptor");
@@ -231,15 +229,20 @@ public class ServerMain implements FileSystemObserver {
 		long length = fileDescriptorDoc.getLong("fileSize");
 		@SuppressWarnings("deprecation")
 		int fileSize = new Long(fileDescriptorDoc.getLong("fileSize")).intValue();
+		@SuppressWarnings("deprecation")
+		int positionInt = new Long(position).intValue();
 		ByteBuffer revFile = ByteBuffer.allocate(fileSize);
 		revFile = fileSystemManager.readFile(fileMd5, position, length);
 		if (position == 0) {
 			revFile.rewind();
 		}
+		//positionInt += bufferSize;
+		@SuppressWarnings("deprecation")
+		long lastestPosition = new Long((long) revFile.position());
 		
 		if (revFile.capacity() < bufferSize) {
 			responseInfo = convertBufferToBase64StringInfo(revFile, buffer, info);
-			serverOut.write(responseInfo.toJson());
+			serverOut.writeUTF(responseInfo.toJson());
 			serverOut.flush();
 		} else {
 			while (revFile.hasRemaining()) {
@@ -253,7 +256,7 @@ public class ServerMain implements FileSystemObserver {
 					info.append("length", revFile.remaining());
 					info.append("position", revFile.position());
 					responseInfo = new SystemEventMessage().fileBytesResponse(info, base64EncodeInfo);
-					serverOut.write(responseInfo.toJson());
+					serverOut.writeUTF(responseInfo.toJson());
 					serverOut.flush();
 				} else {
 					String base64EncodeInfo = new String();
@@ -262,7 +265,7 @@ public class ServerMain implements FileSystemObserver {
 					info.append("length", revFile.remaining());
 					info.append("position", revFile.position());
 					responseInfo = new SystemEventMessage().fileBytesResponse(info, base64EncodeInfo);
-					serverOut.write(responseInfo.toJson());
+					serverOut.writeUTF(responseInfo.toJson());
 					serverOut.flush();
 				}
 
@@ -286,11 +289,11 @@ public class ServerMain implements FileSystemObserver {
 			if (!fileSystemManager.checkWriteComplete(info.getString("pathName"))) {
 				info.append("position", infoBytebuffer.position());
 				responseDocument = new SystemEventMessage().fileBytesRequest(info);
-				serverOut.write(responseDocument.toJson());
+				serverOut.writeUTF(responseDocument.toJson());
 				serverOut.flush();
 			} else {
 				responseDocument = new SystemEventMessage().fileCreateResponseSuccess(info);
-				serverOut.write(responseDocument.toJson());
+				serverOut.writeUTF(responseDocument.toJson());
 				serverOut.flush();
 			}
 		}

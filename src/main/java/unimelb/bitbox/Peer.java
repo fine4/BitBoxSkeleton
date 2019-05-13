@@ -1,10 +1,8 @@
 package unimelb.bitbox;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.security.NoSuchAlgorithmException;
@@ -65,24 +63,20 @@ public class Peer {
 	private static void asClient(String ipAddress, int port) throws NumberFormatException, NoSuchAlgorithmException {
 		// As a client
 		try (Socket socket = new Socket(ipAddress, port)) {
-			BufferedWriter clientOut =  new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), "UTF8"));
-			BufferedReader clientIn = new BufferedReader(new InputStreamReader(socket.getInputStream(),"UTF8"));
-			//DataInputStream clientIn = new DataInputStream(socket.getInputStream());
-			//DataOutputStream clientOut = new DataOutputStream(socket.getOutputStream());
+			DataInputStream clientIn = new DataInputStream(socket.getInputStream());
+			DataOutputStream clientOut = new DataOutputStream(socket.getOutputStream());
 
 			Document info = new SystemEventMessage().HandShakeRequest(ipAddress, port);
 
 			System.out.println(info.toJson());
-			clientOut.write(info.toJson());
-			clientOut.flush();
 
-			//clientOut.write(info.toJson());
-			//clientOut.flush();
+			clientOut.writeUTF(info.toJson());
+			clientOut.flush();
 
 			// read the data from server
 			while (true) {
-				if (clientIn.ready()) {
-					info = Document.parse(clientIn.readLine());
+				if (clientIn.available() > 0) {
+					info = Document.parse(clientIn.readUTF());
 					System.out.println(info.toJson());
 
 					if (info.getString("command").equalsIgnoreCase("CONNECTION_REFUSED")) {
@@ -141,10 +135,8 @@ public class Peer {
 		ArrayList<Document> peerlist = new ArrayList<>();
 		try (Socket clientSocket = client) {
 			
-			BufferedReader serverIn = new BufferedReader(new InputStreamReader(clientSocket.getInputStream(),"UTF8"));
-			BufferedWriter serverOut = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream(),"UTF8"));
-			//DataInputStream serverIn = new DataInputStream(clientSocket.getInputStream());
-			//DataOutputStream serverOut = new DataOutputStream(clientSocket.getOutputStream());
+			DataInputStream serverIn = new DataInputStream(clientSocket.getInputStream());
+			DataOutputStream serverOut = new DataOutputStream(clientSocket.getOutputStream());
 			Document serverInfoDocument = new Document();
 			int userCount = peerlist.size();
 			int maximumIncommingConnections = Integer
@@ -152,13 +144,13 @@ public class Peer {
 			
 			if (userCount >= maximumIncommingConnections) {
 				serverInfoDocument = new SystemEventMessage().connectionRefused(peerlist);
-				serverOut.write(serverInfoDocument.toJson());
+				serverOut.writeUTF(serverInfoDocument.toJson());
 			} else {
-				String info = serverIn.readLine();
+				String info = serverIn.readUTF();
 				serverInfoDocument = Document.parse(info);
 				if (!isJSON2(info)) {
 					serverInfoDocument = new SystemEventMessage().invalidProtocol();
-					serverOut.write(serverInfoDocument.toJson());
+					serverOut.writeUTF(serverInfoDocument.toJson());
 				} else {
 					System.out.println(serverInfoDocument.toJson());
 					if (serverInfoDocument.get("hostPort") != null) {
@@ -172,7 +164,7 @@ public class Peer {
 
 						// response server address and port to client.
 						serverInfoDocument = new SystemEventMessage().HandShakeResponse();
-						serverOut.write(serverInfoDocument.toJson());
+						serverOut.writeUTF(serverInfoDocument.toJson());
 						peerlist.add(receive);
 						new ServerMain(serverOut);
 						ArrayList<FileSystemEvent> pathevents = ServerMain.fileSystemManager.generateSyncEvents();
@@ -182,8 +174,8 @@ public class Peer {
 								thread.start();
 								new ServerMain(serverOut).processFileSystemEvent(fileSystemEvent);
 								while (true) {									
-									if (serverIn.ready()) {
-										serverInfoDocument = Document.parse(serverIn.readLine());
+									if (serverIn.available() > 0) {
+										serverInfoDocument = Document.parse(serverIn.readUTF());
 										System.out.println(serverInfoDocument.toJson());
 										new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut);
 									}
@@ -193,8 +185,8 @@ public class Peer {
 							}						
 						}
 						while (true) {
-							if (serverIn.ready()) {
-								serverInfoDocument = Document.parse(serverIn.readLine());
+							if (serverIn.available() > 0) {
+								serverInfoDocument = Document.parse(serverIn.readUTF());
 								System.out.println(serverInfoDocument.toJson());
 								new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut);
 							}
