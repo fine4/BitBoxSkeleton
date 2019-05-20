@@ -31,6 +31,7 @@ public class Peer {
 	private static HashMap peersMap = new HashMap();
 	private static int searchflag = 0;
 	private static final int searchmax = 10;
+	
 
 	public static void main(String[] args) throws IOException, NumberFormatException, NoSuchAlgorithmException {
 		System.setProperty("java.util.logging.SimpleFormatter.format", "[%1$tc] %2$s %4$s: %5$s%n");
@@ -41,7 +42,7 @@ public class Peer {
 		HostPort peerAddress = new HostPort(hostPost[0]);
 
 		// create a thread for asClient
-		new Thread(() -> {
+		/*new Thread(() -> {
 			try {
 				asClient(peerAddress.host, peerAddress.port);
 			} catch (NumberFormatException e) {
@@ -52,11 +53,21 @@ public class Peer {
 				e.printStackTrace();
 			}
 		}).start();
-		System.out.println("already create a thread for asClient");
+		System.out.println("already create a thread for asClient");*/
 
 		// create a thread for asServer
 		int localPort = Integer.parseInt(Configuration.getConfigurationValue("port"));
-		new Thread(() -> asServer(localPort)).start();
+		new Thread(() -> {
+			try {
+				asServer(localPort);
+			} catch (NoSuchAlgorithmException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}).start();
 
 
 	}
@@ -74,6 +85,7 @@ public class Peer {
 
 			System.out.println(info.toJson());
 			clientOut.write(info.toJson());
+			clientOut.newLine();
 			clientOut.flush();
 
 			//clientOut.write(info.toJson());
@@ -81,7 +93,7 @@ public class Peer {
 
 			// read the data from server
 			while (true) {
-				if (clientIn.ready()) {
+				if (clientIn.ready()&&(clientIn.readLine() != null)) {
 					info = Document.parse(clientIn.readLine());
 					System.out.println(info.toJson());
 
@@ -112,39 +124,29 @@ public class Peer {
 		}
 	}
 
-	private static void asServer(int port) {
+	private static void asServer(int port) throws NoSuchAlgorithmException, InterruptedException {
 		// As a server
 		ServerSocketFactory socketFactory = ServerSocketFactory.getDefault();
 		try (ServerSocket serverSocket = socketFactory.createServerSocket(port)) {
 			System.out.println("Waiting for the connection");
 			while (true) {
 				Socket listenClient = serverSocket.accept();
-				// create a new thread for each peer
-				new Thread(() -> {
-					try {
-						serverSocketConnection(listenClient);
-					} catch (NoSuchAlgorithmException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					} catch (IOException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-				}).start();
+				Thread thread = new Thread();
+				thread.start();
+				serverSocketConnection(listenClient);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
 
-	private static void serverSocketConnection(Socket client) throws IOException, NoSuchAlgorithmException {
+	private static void serverSocketConnection(Socket client) throws IOException, NoSuchAlgorithmException, InterruptedException {
 		ArrayList<Document> peerlist = new ArrayList<>();
 		try (Socket clientSocket = client) {
 			
 			BufferedReader serverIn = new BufferedReader(new InputStreamReader(clientSocket.getInputStream(),"UTF8"));
 			BufferedWriter serverOut = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream(),"UTF8"));
-			//DataInputStream serverIn = new DataInputStream(clientSocket.getInputStream());
-			//DataOutputStream serverOut = new DataOutputStream(clientSocket.getOutputStream());
+			
 			Document serverInfoDocument = new Document();
 			int userCount = peerlist.size();
 			int maximumIncommingConnections = Integer
@@ -153,12 +155,17 @@ public class Peer {
 			if (userCount >= maximumIncommingConnections) {
 				serverInfoDocument = new SystemEventMessage().connectionRefused(peerlist);
 				serverOut.write(serverInfoDocument.toJson());
+				serverOut.newLine();
+				serverOut.flush();
 			} else {
+				
 				String info = serverIn.readLine();
 				serverInfoDocument = Document.parse(info);
 				if (!isJSON2(info)) {
 					serverInfoDocument = new SystemEventMessage().invalidProtocol();
 					serverOut.write(serverInfoDocument.toJson());
+					serverOut.newLine();
+					serverOut.flush();
 				} else {
 					System.out.println(serverInfoDocument.toJson());
 					if (serverInfoDocument.get("hostPort") != null) {
@@ -172,33 +179,39 @@ public class Peer {
 
 						// response server address and port to client.
 						serverInfoDocument = new SystemEventMessage().HandShakeResponse();
-						serverOut.write(serverInfoDocument.toJson());
+						serverOut.write(serverInfoDocument.toJson()+"\r\n");
+						//serverOut.newLine();
+						serverOut.flush();
 						peerlist.add(receive);
 						new ServerMain(serverOut);
-						ArrayList<FileSystemEvent> pathevents = ServerMain.fileSystemManager.generateSyncEvents();
-						for (FileSystemEvent fileSystemEvent : pathevents) {
+
+						new Thread(()->{
 							try {
-								Thread thread = new Thread();
-								thread.start();
-								new ServerMain(serverOut).processFileSystemEvent(fileSystemEvent);
-								while (true) {									
-									if (serverIn.ready()) {
-										serverInfoDocument = Document.parse(serverIn.readLine());
-										System.out.println(serverInfoDocument.toJson());
-										new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut);
-									}
-								}
-							} catch (Exception e) {
-								continue;
-							}						
-						}
-						while (true) {
-							if (serverIn.ready()) {
+								timingSynv(serverOut);
+							} catch (NumberFormatException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							} catch (NoSuchAlgorithmException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							} catch (IOException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							} catch (InterruptedException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							}
+						}).start();
+							
+
+						while (true) {							
+							if (serverIn.ready() && (serverIn.readLine() != null)) {
 								serverInfoDocument = Document.parse(serverIn.readLine());
 								System.out.println(serverInfoDocument.toJson());
 								new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut);
 							}
 						}
+
 					}
 				}
 			}
@@ -259,4 +272,21 @@ public class Peer {
 			return;
 		}
 	}
+	
+	public static void timingSynv (BufferedWriter serverOut) throws NumberFormatException, NoSuchAlgorithmException, IOException, InterruptedException {
+		ArrayList<FileSystemEvent> pathevents = new ArrayList<FileSystemEvent>();
+		while(true) {
+			
+			pathevents = ServerMain.fileSystemManager.generateSyncEvents();
+			for (FileSystemEvent fileSystemEvent : pathevents) {
+				new ServerMain(serverOut).processFileSystemEvent(fileSystemEvent);
+			}
+			
+			Thread.sleep(1000);
+		}
+
+
+	}
+	
+
 }
