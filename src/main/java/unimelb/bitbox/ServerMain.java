@@ -170,6 +170,22 @@ public class ServerMain implements FileSystemObserver {
 			}
 		}
 			break;
+		case "FILE_MODIFY_RESPONSE":{
+			if (info.getBoolean("status") == true) {
+				Document fileDescriptorDoc = (Document) info.get("fileDescriptor");
+				responseDocument = new SystemEventMessage().fileModifyReponseSuccess(fileDescriptorDoc, info.getString("pathName"));
+				serverOut.write(responseDocument.toJson());
+				serverOut.newLine();
+				serverOut.flush();
+			}if((info.getBoolean("status") == true)) {
+				Document fileDescriptorDoc = (Document) info.get("fileDescriptor");
+				responseDocument = new SystemEventMessage().fileModifyReponseFail(fileDescriptorDoc, info.getString("pathName"));
+				serverOut.write(responseDocument.toJson());
+				serverOut.newLine();
+				serverOut.flush();
+			}
+
+		}break;
 
 		case "FILE_DELETE_REQUEST": {
 			Document fileDescriptorDoc = (Document) info.get("fileDescriptor");
