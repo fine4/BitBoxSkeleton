@@ -1,0 +1,17 @@
+<component name="ArtifactManager">
+  <artifact name="bitbox:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/bitbox_jar</output-path>
+    <root id="root">
+      <element id="archive" name="bitbox.jar">
+        <element id="module-output" name="bitbox" />
+      </element>
+      <element id="library" level="project" name="args4j:args4j:2.33" />
+      <element id="library" level="project" name="Maven: org.hamcrest:hamcrest-core:1.1" />
+      <element id="library" level="project" name="Maven: com.googlecode.json-simple:json-simple:1.1.1" />
+      <element id="library" level="project" name="commons-codec:commons-codec:1.7" />
+      <element id="library" level="project" name="Maven: junit:junit:4.10" />
+      <element id="file-copy" path="$USER_HOME$/Downloads/fastjson-1.2.57.jar" />
+      <element id="library" level="project" name="com.alibaba:fastjson:1.2.57" />
+    </root>
+  </artifact>
+</component>

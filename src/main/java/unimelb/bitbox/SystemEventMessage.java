@@ -19,7 +19,8 @@ public class SystemEventMessage {
 		Document info = new Document();
 		info.append("command", "CONNECTION_REFUSED");
 		info.append("message", "connection limit reached");
-		info.append("peers", Configuration.getConfigurationValue("peers"));		
+//		info.append("peers", Configuration.getConfigurationValue("peers"));
+		info.append("peers",peerList);
 		return info;
 	}
 	
@@ -241,4 +242,98 @@ public class SystemEventMessage {
 		return returnInfo;
 	}
 
+	public Document authorizedRequest(String identity){
+		Document returnInfo = new Document();
+		returnInfo.append("command","AUTH_REQUEST");
+		returnInfo.append("identity",identity);
+		return returnInfo;
+	}
+
+	public Document authorizedResponseSuccess() {
+		Document info = new Document();
+		info.append("command", "AUTH_RESPONSE");
+		info.append("AES128","xxxx");
+		info.append("status","true");
+		info.append("message", "public key found");
+		return info;
+	}
+
+	public Document authorizedResponseFail() {
+		Document info = new Document();
+		info.append("command", "AUTH_RESPONSE");
+		info.append("status","false");
+		info.append("message", "public key not found");
+		return info;
+	}
+
+	public Document listPeersRequest() {
+		Document info = new Document();
+		info.append("command", "LIST_PEERS_REQUEST");
+		return info;
+	}
+
+	public Document listPeersResponse(ArrayList<Document> peerList) {
+//		ArrayList<Document> peerlist = new ArrayList<>();
+		Document peer = new Document();
+		Document info = new Document();
+		info.append("command", "LIST_PEERS_RESPONSE");
+		info.append("peers", peerList);
+//		peerlist.clear();
+		return info;
+	}
+
+	public Document connectPeerRequest(String host, int port) {
+		Document info = new Document();
+		info.append("command", "CONNECT_PEER_REQUEST");
+		info.append("host", host);
+		info.append("port", port);
+		return info;
+	}
+
+	public Document connectPeerResponseSuccess(String host, int port) {
+		Document info = new Document();
+		info.append("command", "CONNECT_PEER_RESPONSE");
+		info.append("host", host);
+		info.append("port", port);
+		info.append("status","true");
+		info.append("message","connected to peer");
+		return info;
+	}
+
+	public Document connectPeerResponseFail(String host, int port) {
+		Document info = new Document();
+		info.append("command", "CONNECT_PEER_RESPONSE");
+		info.append("host", host);
+		info.append("port", port);
+		info.append("message","connection failed");
+		return info;
+	}
+
+	public Document disconnectPeerRequest(String host, int port) {
+		Document info = new Document();
+		info.append("command", "DISCONNECT_PEER_REQUEST");
+		info.append("host", host);
+		info.append("port", port);
+		return info;
+	}
+
+	public Document disconnectPeerResponseSuccess(String host, int port) {
+		Document info = new Document();
+		info.append("command", "DISCONNECT_PEER_RESPONSE");
+		info.append("host", host);
+		info.append("port", port);
+		info.append("status","true");
+		info.append("message","disconnected from peer");
+		return info;
+	}
+
+	public Document disconnectPeerResponseFail(String host, int port) {
+		Document info = new Document();
+		info.append("command", "DISCONNECT_PEER_RESPONSE");
+		info.append("host", host);
+		info.append("port", port);
+		info.append("status","true");
+		info.append("message","connection not active");
+		return info;
+	}
 }
