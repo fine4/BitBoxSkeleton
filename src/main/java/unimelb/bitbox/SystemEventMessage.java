@@ -31,6 +31,15 @@ public class SystemEventMessage {
 		info.append("hostPort", docHostPort.toDoc());
 		return info;
 	}
+
+	public Document DisconnectRequest(String ipAddress, int port) {
+		Document info = new Document();
+		HostPort docHostPort = new HostPort(ipAddress, port);
+		info.append("command", "DISCONNECT_REQUEST");
+		info.append("hostPort", docHostPort.toDoc());
+		return info;
+	}
+
 	public Document HandShakeResponse() {
 		Document info = new Document();
 		HostPort serverHostPort = new HostPort(Configuration.getConfigurationValue("advertisedName"),Integer.parseInt(Configuration.getConfigurationValue("port")));

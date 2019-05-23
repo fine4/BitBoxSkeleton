@@ -178,6 +178,7 @@ public class Peer {
 		try (Socket socket = new Socket(ipAddress, port)) {
 			BufferedWriter clientOut =  new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), "UTF8"));
 			BufferedReader clientIn = new BufferedReader(new InputStreamReader(socket.getInputStream(),"UTF8"));
+			BufferedWriter clientOut2 = new BufferedWriter(new OutputStreamWriter(cSocket.getOutputStream(),"UTF8"));
 			//DataInputStream clientIn = new DataInputStream(socket.getInputStream());
 			//DataOutputStream clientOut = new DataOutputStream(socket.getOutputStream());
 
@@ -197,6 +198,11 @@ public class Peer {
 
 					if (info.getString("command").equalsIgnoreCase("CONNECTION_REFUSED")) {
 						// Parsing the peers and add them into an ArrayList
+						Document infoToClient = new SystemEventMessage().connectPeerResponseFail(ipAddress,port);
+						clientOut2.write(infoToClient.toJson());
+						clientOut2.newLine();
+						clientOut2.flush();
+
 						peersMap.put(ipAddress + ":" + port, Math.random());
 						ArrayList<Document> peers = new ArrayList<Document>();
 						peers.addAll((ArrayList<Document>) info.get("peers"));
@@ -207,10 +213,17 @@ public class Peer {
 						getpeersList(peersList);
 
 					} else if (info.getString("command").equalsIgnoreCase("HANDSHAKE_RESPONSE")) {
+						Document infoToClient = new SystemEventMessage().connectPeerResponseSuccess(ipAddress,port);
+						clientOut2.write(infoToClient.toJson());
+						clientOut2.newLine();
+						clientOut2.flush();
 						peersList.clear();
 						peersQueue.clear();
 						peersMap.clear();
 						searchflag = 0;
+					}
+					if(info.getString("command").equalsIgnoreCase("DISCONNECT_REQUEST")){
+						socket.close();
 					}
 					new ServerMain(clientOut).HandleFileSystemEvent(info, clientOut);
 				}
@@ -276,6 +289,7 @@ public class Peer {
 			e.printStackTrace();
 		}
 	}
+	
 
 	private static void serverSocketConnection(Socket client) throws IOException, NoSuchAlgorithmException, InterruptedException {
 
@@ -314,13 +328,17 @@ public class Peer {
 								serverInfoDocument = new SystemEventMessage().invalidProtocol();
 							}
 						}
-
-						// response server address and port to client.
-						serverInfoDocument = new SystemEventMessage().HandShakeResponse();
-						serverOut.write(serverInfoDocument.toJson());
-						serverOut.newLine();
-						serverOut.flush();
-						peerlist.add(receive);
+						if(serverInfoDocument.getString("command").equalsIgnoreCase("HANDSHAKE_REQUEST")){
+							serverInfoDocument = new SystemEventMessage().HandShakeResponse();
+							serverOut.write(serverInfoDocument.toJson());
+							serverOut.newLine();
+							serverOut.flush();
+							peerlist.add(receive);
+						}
+						if(serverInfoDocument.getString("command").equalsIgnoreCase("DISCONNECT_REQUEST")){
+							clientSocket.close();
+							peerlist.remove(receive);
+						}
 						new ServerMain(serverOut);
 
 						new Thread(()->{
