@@ -170,32 +170,24 @@ public class ServerMain implements FileSystemObserver {
 			}
 		}
 			break;
-		case "FILE_MODIFY_RESPONSE":{
-			if (info.getBoolean("status") == true) {
-				Document fileDescriptorDoc = (Document) info.get("fileDescriptor");
-				responseDocument = new SystemEventMessage().fileModifyReponseSuccess(fileDescriptorDoc, info.getString("pathName"));
-				serverOut.write(responseDocument.toJson());
-				serverOut.newLine();
-				serverOut.flush();
-			}if((info.getBoolean("status") == true)) {
-				Document fileDescriptorDoc = (Document) info.get("fileDescriptor");
-				responseDocument = new SystemEventMessage().fileModifyReponseFail(fileDescriptorDoc, info.getString("pathName"));
-				serverOut.write(responseDocument.toJson());
-				serverOut.newLine();
-				serverOut.flush();
-			}
 
-		}break;
 
 		case "FILE_DELETE_REQUEST": {
 			Document fileDescriptorDoc = (Document) info.get("fileDescriptor");
 			String fileMd5 = fileDescriptorDoc.getString("md5");
 			long fileLastModified = fileDescriptorDoc.getLong("lastModified");
-			fileSystemManager.deleteFile(info.getString("pathName"), fileLastModified, fileMd5);
-			responseDocument = new SystemEventMessage().fileDeleteRequest(fileDescriptorDoc,info.getString("pathName"));
-			serverOut.write(responseDocument.toJson());
-			serverOut.newLine();
-			serverOut.flush();
+			if(fileSystemManager.deleteFile(info.getString("pathName"), fileLastModified, fileMd5)) {
+				responseDocument = new SystemEventMessage().fileDeleteResponseSuccess(fileDescriptorDoc,info.getString("pathName"));
+				serverOut.write(responseDocument.toJson());
+				serverOut.newLine();
+				serverOut.flush();
+			}else {
+				responseDocument = new SystemEventMessage().fileDeleteResponseNotExist(fileDescriptorDoc,info.getString("pathName"));
+				serverOut.write(responseDocument.toJson());
+				serverOut.newLine();
+				serverOut.flush();
+			}
+		
 		}
 			break;
 		case "DIRECTORY_CREATE_REQUEST": { // need to modify

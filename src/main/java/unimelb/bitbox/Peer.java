@@ -1,7 +1,18 @@
 package unimelb.bitbox;
 
-import java.io.*;
-import java.net.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.InterruptedIOException;
+import java.io.OutputStreamWriter;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketException;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,7 +49,7 @@ public class Peer {
 		String[] hostPost = Configuration.getConfigurationValue("peers").split(",");
 		HostPort peerAddress = new HostPort(hostPost[0]);
         if(Configuration.getConfigurationValue("mode").equalsIgnoreCase("tcp") ){
-            //create a thread for asClient
+           //create a thread for asClient
             new Thread(() -> {
                 try {
                     asClient(peerAddress.host, peerAddress.port);
@@ -50,9 +61,9 @@ public class Peer {
                     e.printStackTrace();
                 }
             }).start();
-            System.out.println("already create a thread for asClient");
-
-            // create a thread for asServer
+            log.info("already create a thread for asClient");
+            
+           /*  // create a thread for asServer
             int localPort = Integer.parseInt(Configuration.getConfigurationValue("port"));
             new Thread(() -> {
                 try {
@@ -64,9 +75,9 @@ public class Peer {
                     // TODO Auto-generated catch block
                     e.printStackTrace();
                 }
-            }).start();
+            }).start();*/
 
-            // create a thread for asServerForClient
+           // create a thread for asServerForClient
             int clientPort = Integer.parseInt(Configuration.getConfigurationValue("clientPort"));
             new Thread(() -> {
                 asServerForClient(clientPort);
@@ -184,7 +195,7 @@ public class Peer {
 
 			Document info = new SystemEventMessage().HandShakeRequest(ipAddress, port);
 
-			System.out.println(info.toJson());
+			log.info(info.toJson());
 			clientOut.write(info.toJson());
 			clientOut.newLine();
 			clientOut.flush();
@@ -192,40 +203,45 @@ public class Peer {
 
 			// read the data from server
 			while (true) {
+				String string = null;
 				if (clientIn.ready()) {
-					info = Document.parse(clientIn.readLine());
-					System.out.println(info.toJson());
+					if ((string = clientIn.readLine()) != null) {
+						info = Document.parse(string);
+						log.info(string);
 
-					if (info.getString("command").equalsIgnoreCase("CONNECTION_REFUSED")) {
-						// Parsing the peers and add them into an ArrayList
-						Document infoToClient = new SystemEventMessage().connectPeerResponseFail(ipAddress,port);
-						clientOut2.write(infoToClient.toJson());
-						clientOut2.newLine();
-						clientOut2.flush();
+						if (info.getString("command").equalsIgnoreCase("CONNECTION_REFUSED")) {
+							// Parsing the peers and add them into an ArrayList
+							Document infoToClient = new SystemEventMessage().connectPeerResponseFail(ipAddress, port);
+							clientOut2.write(infoToClient.toJson());
+							clientOut2.newLine();
+							clientOut2.flush();
 
-						peersMap.put(ipAddress + ":" + port, Math.random());
-						ArrayList<Document> peers = new ArrayList<Document>();
-						peers.addAll((ArrayList<Document>) info.get("peers"));
+							peersMap.put(ipAddress + ":" + port, Math.random());
+							ArrayList<Document> peers = new ArrayList<Document>();
+							peers.addAll((ArrayList<Document>) info.get("peers"));
 
-						for (int i = 0; i < peers.size(); i++) {
-							peersList.add(peers.get(i).get("host") + ":" + peers.get(i).get("port"));
+							for (int i = 0; i < peers.size(); i++) {
+								peersList.add(peers.get(i).get("host") + ":" + peers.get(i).get("port"));
+							}
+							getpeersList(peersList);
+
+						} else if (info.getString("command").equalsIgnoreCase("HANDSHAKE_RESPONSE")) {
+							Document infoToClient = new SystemEventMessage().connectPeerResponseSuccess(ipAddress,
+									port);
+							clientOut2.write(infoToClient.toJson());
+							clientOut2.newLine();
+							clientOut2.flush();
+							peersList.clear();
+							peersQueue.clear();
+							peersMap.clear();
+							searchflag = 0;
 						}
-						getpeersList(peersList);
+						if (info.getString("command").equalsIgnoreCase("DISCONNECT_REQUEST")) {
+							socket.close();
+						}
+						new ServerMain(clientOut).HandleFileSystemEvent(info, clientOut);
 
-					} else if (info.getString("command").equalsIgnoreCase("HANDSHAKE_RESPONSE")) {
-						Document infoToClient = new SystemEventMessage().connectPeerResponseSuccess(ipAddress,port);
-						clientOut2.write(infoToClient.toJson());
-						clientOut2.newLine();
-						clientOut2.flush();
-						peersList.clear();
-						peersQueue.clear();
-						peersMap.clear();
-						searchflag = 0;
 					}
-					if(info.getString("command").equalsIgnoreCase("DISCONNECT_REQUEST")){
-						socket.close();
-					}
-					new ServerMain(clientOut).HandleFileSystemEvent(info, clientOut);
 				}
 			}
 
@@ -239,7 +255,7 @@ public class Peer {
 		// As a server
 		ServerSocketFactory socketFactory = ServerSocketFactory.getDefault();
 		try (ServerSocket serverSocket = socketFactory.createServerSocket(port)) {
-			System.out.println("Waiting for the connection");
+			log.info("Peer is waiting for the connection");
 			while (true) {
 				Socket listenClient = serverSocket.accept();
 				new Thread(()->{
@@ -299,7 +315,7 @@ public class Peer {
 			BufferedWriter serverOut = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream(),"UTF8"));
 			
 			Document serverInfoDocument = new Document();
-			Queue<String> queueRead = new LinkedList<String>();
+
 			int userCount = peerlist.size();
 			int maximumIncommingConnections = Integer
 					.parseInt(Configuration.getConfigurationValue("maximumIncommingConnections"));
@@ -309,77 +325,73 @@ public class Peer {
 				serverOut.write(serverInfoDocument.toJson());
 				serverOut.newLine();
 				serverOut.flush();
-			} else {
-				
-				String info = serverIn.readLine();
-				serverInfoDocument = Document.parse(info);
-				if (!isJSON2(info)) {
-					serverInfoDocument = new SystemEventMessage().invalidProtocol();
-					serverOut.write(serverInfoDocument.toJson());
-					serverOut.newLine();
-					serverOut.flush();
-				} else {
-					System.out.println(serverInfoDocument.toJson());
-					if (serverInfoDocument.get("hostPort") != null) {
-						Document receive = new Document();
-						receive = (Document) serverInfoDocument.get("hostPort");
-						for (int i = 0; i < peerlist.size(); i++) {
-							if (peerlist.get(i).toJson().equals(receive.toJson())) {
-								serverInfoDocument = new SystemEventMessage().invalidProtocol();
-							}
-						}
-						if(serverInfoDocument.getString("command").equalsIgnoreCase("HANDSHAKE_REQUEST")){
-							serverInfoDocument = new SystemEventMessage().HandShakeResponse();
+			}else {
+					String info = null;
+					if ((info = serverIn.readLine()) != null) {
+						serverInfoDocument = Document.parse(info);
+
+						if (!isJSON2(info)) {
+							serverInfoDocument = new SystemEventMessage().invalidProtocol();
 							serverOut.write(serverInfoDocument.toJson());
 							serverOut.newLine();
 							serverOut.flush();
-							peerlist.add(receive);
-						}
-						if(serverInfoDocument.getString("command").equalsIgnoreCase("DISCONNECT_REQUEST")){
-							clientSocket.close();
-							peerlist.remove(receive);
-						}
-						new ServerMain(serverOut);
-
-						new Thread(()->{
-							try {
-								timingSynv(serverOut);
-							} catch (NumberFormatException e) {
-								// TODO Auto-generated catch block
-								e.printStackTrace();
-							} catch (NoSuchAlgorithmException e) {
-								// TODO Auto-generated catch block
-								e.printStackTrace();
-							} catch (IOException e) {
-								// TODO Auto-generated catch block
-								e.printStackTrace();
-							} catch (InterruptedException e) {
-								// TODO Auto-generated catch block
-								e.printStackTrace();
-							}
-						}).start();
-							
-						String string = null;
-						while (true) {								
-							if (serverIn.ready() ) {
-								if((string = serverIn.readLine())!= null) {
-										//queueRead.offer(string);
-										//for (String stringRead : queueRead) {
-											serverInfoDocument = Document.parse(serverIn.readLine());
-											System.out.println(serverInfoDocument.toJson());
-											new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut);
-											//queueRead.poll();
-										//}
+						} else {
+							log.info(serverInfoDocument.toJson());
+							if (serverInfoDocument.get("hostPort") != null) {
+								Document receive = new Document();
+								receive = (Document) serverInfoDocument.get("hostPort");
+								for (int i = 0; i < peerlist.size(); i++) {
+									if (peerlist.get(i).toJson().equals(receive.toJson())) {
+										serverInfoDocument = new SystemEventMessage().invalidProtocol();
 									}
+								}
+	                            if(serverInfoDocument.getString("command").equalsIgnoreCase("HANDSHAKE_REQUEST")){
+	                                serverInfoDocument = new SystemEventMessage().HandShakeResponse();
+	                                serverOut.write(serverInfoDocument.toJson());
+	                                serverOut.newLine();
+	                                serverOut.flush();
+	                                peerlist.add(receive);
+	                            }
+	                            if(serverInfoDocument.getString("command").equalsIgnoreCase("DISCONNECT_REQUEST")){
+	                                clientSocket.close();
+	                                peerlist.remove(receive);
+	                            }
+						}
+					}
+
+					new Thread(() -> {
+						try {
+							new ServerMain(serverOut);
+							timingSynv(serverOut);
+						} catch (NumberFormatException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						} catch (NoSuchAlgorithmException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						} catch (IOException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						} catch (InterruptedException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+					}).start();
+
+					String string = null;
+					while (true) {
+						if (serverIn.ready()) {
+							if ((string = serverIn.readLine()) != null) {
+								log.info(string);
+								serverInfoDocument = Document.parse(string);						
+								new ServerMain(serverOut).HandleFileSystemEvent(serverInfoDocument, serverOut);
 							}
 						}
-
 					}
 				}
 			}
 		}
 	}
-
 	public static boolean isJSON2(String string) {
 		boolean result = false;
 		try {
