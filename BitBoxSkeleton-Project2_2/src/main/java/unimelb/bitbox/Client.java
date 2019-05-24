@@ -88,6 +88,10 @@ public class Client {
                     System.out.println(info.toJson());
                     if(!info.getString("command").equalsIgnoreCase("AUTH_RESPONSE") || !info.getString("status").equalsIgnoreCase("true")){
                         flag = false;
+                        socket.shutdownInput();
+                        socket.shutdownOutput();
+                        socket.close();
+
                     }else{
                         info = new SystemEventMessage().listPeersRequest();
                         System.out.println(info.toJson());
@@ -97,6 +101,7 @@ public class Client {
                     }
                 }
             }
+
         }
         catch (IOException e) {
             // TODO Auto-generated catch block
@@ -123,6 +128,9 @@ public class Client {
                     System.out.println(info.toJson());
                     if(!info.getString("command").equalsIgnoreCase("AUTH_RESPONSE") || !info.getString("status").equalsIgnoreCase("true")){
                         flag = false;
+                        socket.shutdownInput();
+                        socket.shutdownOutput();
+                        socket.close();
                     }else{
                         info = new SystemEventMessage().connectPeerRequest(peerHostPort.getString("host"),peerHostPort.getInteger("port"));
                         System.out.println(info.toJson());
@@ -132,11 +140,13 @@ public class Client {
                     }
                 }
             }
+            socket.close();
         }
         catch (IOException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
+
     }
     private static void clientConnectionForDisonnectPeer(String ipAddress, int port, Document peerHostPort){
         try (Socket socket = new Socket(ipAddress, port)) {
@@ -156,6 +166,9 @@ public class Client {
                     System.out.println(info.toJson());
                     if(!info.getString("command").equalsIgnoreCase("AUTH_RESPONSE") || !info.getString("status").equalsIgnoreCase("true")){
                         flag = false;
+                        socket.shutdownInput();
+                        socket.shutdownOutput();
+                        socket.close();
                     }else{
                         info = new SystemEventMessage().disconnectPeerRequest(peerHostPort.getString("host"),peerHostPort.getInteger("port"));
                         System.out.println(info.toJson());
@@ -165,6 +178,7 @@ public class Client {
                     }
                 }
             }
+
         }
         catch (IOException e) {
             // TODO Auto-generated catch block

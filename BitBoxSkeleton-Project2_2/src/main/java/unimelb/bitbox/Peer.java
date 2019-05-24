@@ -9,10 +9,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Queue;
+import java.util.*;
 import java.util.logging.Logger;
 
 import javax.net.ServerSocketFactory;
@@ -34,6 +31,8 @@ public class Peer {
 	private static final int searchmax = 10;
 	private static ArrayList<Document> peerlist = new ArrayList<>();
 	static Socket cSocket;
+	private static HashMap<HostPort, Socket> connectedInfo = new HashMap<>();
+
 	//private static Queue <FileSystemEvent> eventQueue = new LinkedList<>();
 
 	public static void main(String[] args) throws IOException, NumberFormatException, NoSuchAlgorithmException {
@@ -60,18 +59,18 @@ public class Peer {
             }).start();
 
 			//create a thread for asClient
-			new Thread(() -> {
-				try {
-					asClient(peerAddress.host, peerAddress.port);
-				} catch (NumberFormatException e) {
-
-					e.printStackTrace();
-				} catch (NoSuchAlgorithmException e) {
-					// TODOAuto-generated catch block
-					e.printStackTrace();
-				}
-			}).start();
-			log.info("already create a thread for asClient");
+//			new Thread(() -> {
+//				try {
+//					asClient(peerAddress.host, peerAddress.port);
+//				} catch (NumberFormatException e) {
+//
+//					e.printStackTrace();
+//				} catch (NoSuchAlgorithmException e) {
+//					// TODOAuto-generated catch block
+//					e.printStackTrace();
+//				}
+//			}).start();
+//			log.info("already create a thread for asClient");
 
 
 			// create a thread for asServerForClient
@@ -230,6 +229,9 @@ public class Peer {
 								clientOut2.write(infoToClient.toJson());
 								clientOut2.newLine();
 								clientOut2.flush();
+								cSocket.shutdownOutput();
+								cSocket.shutdownInput();
+								cSocket.close();
 							}
 
 							peersMap.put(ipAddress + ":" + port, Math.random());
@@ -248,9 +250,14 @@ public class Peer {
 								clientOut2.write(infoToClient.toJson());
 								clientOut2.newLine();
 								clientOut2.flush();
+								cSocket.shutdownOutput();
+								cSocket.shutdownInput();
+								cSocket.close();
 							}
 							receive = (Document) info.get("hostPort");
 							peerlist.add(receive);
+							HostPort connectPeer = new HostPort(receive);
+							connectedInfo.put(connectPeer,socket);
 							peersList.clear();
 							peersQueue.clear();
 							peersMap.clear();
@@ -267,6 +274,11 @@ public class Peer {
 						if(info.getString("command").equalsIgnoreCase("DISCONNECT_RESPONSE")){
 							socket.shutdownInput();
 							socket.shutdownOutput();
+							for(Iterator<Map.Entry<HostPort,Socket>> it = connectedInfo.entrySet().iterator(); it.hasNext();){
+								Map.Entry<HostPort,Socket> entry = it.next();
+								if(entry.getKey().toString().equalsIgnoreCase(receive.toJson()))
+									it.remove();
+							}
 							socket.close();
 							peerlist.remove(receive);
 							if(cSocket!=null){
@@ -275,6 +287,10 @@ public class Peer {
 								clientOut2.write(infoToClient.toJson());
 								clientOut2.newLine();
 								clientOut2.flush();
+								cSocket.shutdownOutput();
+								cSocket.shutdownInput();
+								cSocket.close();
+
 							}
 
 						}
@@ -376,25 +392,25 @@ public class Peer {
 							serverOut.flush();
 						} else {
 							log.info(serverInfoDocument.toJson());
-							boolean exist = false;
-							System.out.println("server:"+serverInfoDocument.toJson());
-							Document peer1 = new Document();
-							peer1 = (Document) serverInfoDocument.get("hostPort");
-							for (Document item : peerlist){
-								if(item.toJson().equals(peer1.toJson())){
-									exist = true;
-								}
-							}
-							if(serverInfoDocument.getString("command").equalsIgnoreCase("HANDSHAKE_REQUEST")&&exist == true){
-								Long port2 = peer1.getLong("port");
-								int removePort = port2.intValue();
-								serverInfoDocument = new SystemEventMessage().DisconnectRequest(peer1.getString("host"),removePort);
-								System.out.println("Server："+serverInfoDocument.toJson());
-								serverOut.write(serverInfoDocument.toJson());
-								serverOut.newLine();
-								serverOut.flush();
-
-							}
+//							boolean exist = false;
+//							System.out.println("server:"+serverInfoDocument.toJson());
+//							Document peer1 = new Document();
+//							peer1 = (Document) serverInfoDocument.get("hostPort");
+//							for (Document item : peerlist){
+//								if(item.toJson().equals(peer1.toJson())){
+//									exist = true;
+//								}
+//							}
+//							if(serverInfoDocument.getString("command").equalsIgnoreCase("HANDSHAKE_REQUEST")&&exist == true){
+//								Long port2 = peer1.getLong("port");
+//								int removePort = port2.intValue();
+//								serverInfoDocument = new SystemEventMessage().DisconnectRequest(peer1.getString("host"),removePort);
+//								System.out.println("Server："+serverInfoDocument.toJson());
+//								serverOut.write(serverInfoDocument.toJson());
+//								serverOut.newLine();
+//								serverOut.flush();
+//
+//							}
 							if (serverInfoDocument.get("hostPort") != null) {
 								Document receive = new Document();
 								receive = (Document) serverInfoDocument.get("hostPort");
@@ -403,16 +419,31 @@ public class Peer {
 										serverInfoDocument = new SystemEventMessage().invalidProtocol();
 									}
 								}
-	                            if(serverInfoDocument.getString("command").equalsIgnoreCase("HANDSHAKE_REQUEST")&&exist!=true){
+	                            if(serverInfoDocument.getString("command").equalsIgnoreCase("HANDSHAKE_REQUEST")){
 	                                serverInfoDocument = new SystemEventMessage().HandShakeResponse();
 	                                serverOut.write(serverInfoDocument.toJson());
 	                                serverOut.newLine();
 	                                serverOut.flush();
+									HostPort connectPeer = new HostPort(receive);
+									connectedInfo.put(connectPeer,clientSocket);
 	                                peerlist.add(receive);
 	                            }
+								if(serverInfoDocument.getString("command").equalsIgnoreCase("DISCONNECT_REQUEST")) {
+									serverInfoDocument = new SystemEventMessage().DisconnectResponse();
+									System.out.println("Server：" + serverInfoDocument.toJson());
+									serverOut.write(serverInfoDocument.toJson());
+									serverOut.newLine();
+									serverOut.flush();
+								}
 								if(serverInfoDocument.getString("command").equalsIgnoreCase("DISCONNECT_RESPONSE")){
 									clientSocket.shutdownInput();
 									clientSocket.shutdownOutput();
+									for(Iterator<Map.Entry<HostPort,Socket>> it = connectedInfo.entrySet().iterator(); it.hasNext();){
+										Map.Entry<HostPort,Socket> entry = it.next();
+										if(entry.getKey().toString().equalsIgnoreCase(receive.toJson()))
+											it.remove();
+									}
+
 									clientSocket.close();
 									peerlist.remove(receive);
 									if(cSocket!=null){
@@ -422,6 +453,9 @@ public class Peer {
 										serverOut2.write(infoToClient.toJson());
 										serverOut2.newLine();
 										serverOut2.flush();
+										cSocket.shutdownInput();
+										cSocket.shutdownOutput();
+										cSocket.close();
 									}
 
 								}
@@ -540,7 +574,6 @@ public class Peer {
 			BufferedReader serverIn = new BufferedReader(new InputStreamReader(clientSocket.getInputStream(),"UTF8"));
 			BufferedWriter serverOut = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream(),"UTF8"));
 			Document serverInfoDocument = new Document();
-
 			while(true){
 				if(serverIn.ready()){
 					String info = serverIn.readLine();
@@ -563,6 +596,9 @@ public class Peer {
 									serverOut.newLine();
 									serverOut.flush();
 									System.out.println(serverInfoDocument.toJson());
+									clientSocket.shutdownOutput();
+									clientSocket.shutdownInput();
+									clientSocket.close();
 								}
 							}
 							break;
@@ -572,6 +608,9 @@ public class Peer {
 							serverOut.newLine();
 							serverOut.flush();
 							System.out.println(serverInfoDocument.toJson());
+							clientSocket.shutdownOutput();
+							clientSocket.shutdownInput();
+							clientSocket.close();
 							break;
 						case "CONNECT_PEER_REQUEST":
 							String hostC = serverInfoDocument.getString("host");
@@ -583,6 +622,9 @@ public class Peer {
 								serverOut.write(serverInfoDocument.toJson());
 								serverOut.newLine();
 								serverOut.flush();
+								clientSocket.shutdownOutput();
+								clientSocket.shutdownInput();
+								clientSocket.close();
 							}else{
 								new Thread(() -> {
 									try {
@@ -596,7 +638,6 @@ public class Peer {
 									}
 								}).start();
 							}
-
 							break;
 						case "DISCONNECT_PEER_REQUEST":
 							String hostD = serverInfoDocument.getString("host");
@@ -608,27 +649,30 @@ public class Peer {
 								serverOut.write(serverInfoDocument.toJson());
 								serverOut.newLine();
 								serverOut.flush();
+								clientSocket.shutdownOutput();
+								clientSocket.shutdownInput();
+								clientSocket.close();
 							}else{
-
-								try {
-									cSocket = clientSocket;
-									asClient(hostD, portD);
-								} catch (NumberFormatException e) {
-									e.printStackTrace();
-								} catch (NoSuchAlgorithmException e) {
-									// TODOAuto-generated catch block
-									e.printStackTrace();
+								HostPort givenPeer = new HostPort(hostD, portD);
+								for(Iterator<Map.Entry<HostPort,Socket>> it = connectedInfo.entrySet().iterator(); it.hasNext();){
+									Map.Entry<HostPort,Socket> entry = it.next();
+									if(entry.getKey().toString().equalsIgnoreCase(givenPeer.toString())){
+										cSocket = clientSocket;
+										BufferedWriter out = new BufferedWriter(new OutputStreamWriter(entry.getValue().getOutputStream(),"UTF8"));
+										Document disconnectInfo = new SystemEventMessage().DisconnectRequest(givenPeer.host,givenPeer.port);
+										out.write(disconnectInfo.toJson());
+										out.newLine();
+										out.flush();
+									}
 								}
-
 							}
 							break;
 						default:
 							break;
 					}
 				}
+
 			}
-
-
 		}
 	}
 
