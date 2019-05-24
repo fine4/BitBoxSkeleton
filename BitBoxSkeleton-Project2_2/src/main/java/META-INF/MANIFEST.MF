@@ -1,0 +1,5 @@
+Manifest-Version: 1.0
+Class-Path: core-3.1.0.jar fastjson-1.2.57.jar args4j-2.33.jar json-si
+ mple-1.1.1.jar hamcrest-core-1.1.jar junit-4.10.jar commons-codec-1.7
+ .jar
+
